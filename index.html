@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>セミナーQ&A 集計ツール</title>
+<title>コエミル｜セミナーQ&A集計ツール</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -40,8 +40,9 @@
     background:linear-gradient(90deg, var(--green), var(--gold), var(--coral), var(--violet));
   }
   .page-top{display:flex;justify-content:space-between;align-items:center;gap:24px;}
-  .hero-dots{width:110px;height:84px;flex-shrink:0;}
-  @media (max-width:600px){.hero-dots{display:none;}}
+  .brand{display:flex;align-items:center;gap:18px;}
+  .logo-mark{width:58px;height:58px;flex-shrink:0;}
+  @media (max-width:600px){.logo-mark{width:44px;height:44px;}}
 
   header.page .eyebrow{
     display:inline-block;
@@ -243,18 +244,19 @@
 
   <header class="page">
     <div class="page-top">
-      <div>
-        <div class="eyebrow">QUESTION AGGREGATOR</div>
-        <h1>セミナーQ&A 集計ツール</h1>
-        <p>Googleフォームで集めた質問をスプレッドシートから読み込み、頻出キーワードと質問のグループを表示します。</p>
+      <div class="brand">
+        <svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="28" fill="#ffffff" stroke="#1f7a4d" stroke-width="4"/>
+          <circle cx="22" cy="26" r="8" fill="#2f9e64"/>
+          <circle cx="40" cy="20" r="10" fill="#f2a93b"/>
+          <circle cx="46" cy="38" r="7" fill="#ef6a52"/>
+          <circle cx="24" cy="42" r="6" fill="#7b6ef6"/>
+        </svg>
+        <div>
+          <div class="eyebrow">SEMINAR Q&A TOOL</div>
+          <h1>コエミル</h1>
+        </div>
       </div>
-      <svg class="hero-dots" viewBox="0 0 120 90" aria-hidden="true">
-        <circle cx="18" cy="62" r="14" fill="#2f9e64"/>
-        <circle cx="54" cy="28" r="20" fill="#f2a93b"/>
-        <circle cx="92" cy="54" r="12" fill="#ef6a52"/>
-        <circle cx="102" cy="18" r="8" fill="#7b6ef6"/>
-        <circle cx="34" cy="82" r="7" fill="#7b6ef6"/>
-      </svg>
     </div>
   </header>
 
