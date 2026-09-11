@@ -4,5 +4,5 @@
   "categoryColumn": "所属",
   "excludeWords": "質問, 教えて, ください",
   "autoRefresh": true,
-  "refreshIntervalMs": 60000
+  "refreshIntervalMs": 30000
 }
