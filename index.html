@@ -11,15 +11,17 @@
 <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
 <style>
   :root{
-    --ink:#22262a;
-    --ink-soft:#565f5b;
-    --paper:#f6f5f0;
+    --ink:#20261f;
+    --ink-soft:#5c6b58;
+    --paper:#fffdf6;
     --panel:#ffffff;
-    --line:#dcdad0;
-    --green:#3f6b4f;
-    --green-deep:#2b4a37;
-    --gold:#b7912b;
-    --alert:#b1442e;
+    --line:#eae6d6;
+    --green:#2f9e64;
+    --green-deep:#1f7a4d;
+    --gold:#f2a93b;
+    --coral:#ef6a52;
+    --violet:#7b6ef6;
+    --alert:#d1483a;
   }
   *{box-sizing:border-box;}
   body{
@@ -31,35 +33,61 @@
   }
   .wrap{max-width:1080px;margin:0 auto;padding:40px 24px 100px;}
 
-  header.page{border-bottom:2px solid var(--ink);padding-bottom:20px;margin-bottom:32px;}
-  header.page .eyebrow{
-    font-family:'JetBrains Mono',monospace;
-    font-size:12px;
-    letter-spacing:.02em;
-    color:var(--green-deep);
-    margin-bottom:8px;
+  header.page{position:relative;padding-bottom:24px;margin-bottom:40px;}
+  header.page::after{
+    content:'';
+    position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:4px;
+    background:linear-gradient(90deg, var(--green), var(--gold), var(--coral), var(--violet));
   }
-  header.page h1{font-size:28px;font-weight:900;margin:0 0 6px;}
-  header.page p{margin:0;color:var(--ink-soft);font-size:14px;}
+  .page-top{display:flex;justify-content:space-between;align-items:center;gap:24px;}
+  .hero-dots{width:110px;height:84px;flex-shrink:0;}
+  @media (max-width:600px){.hero-dots{display:none;}}
+
+  header.page .eyebrow{
+    display:inline-block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:.04em;
+    color:#fff;
+    background:var(--green);
+    padding:4px 12px;
+    border-radius:20px;
+    margin-bottom:12px;
+  }
+  header.page h1{font-size:30px;font-weight:900;margin:0 0 8px;color:var(--ink);}
+  header.page p{margin:0;color:var(--ink-soft);font-size:14px;max-width:56ch;}
 
   section{margin-bottom:36px;}
   section h2{
-    font-size:15px;
+    font-size:16px;
     font-weight:700;
-    margin:0 0 14px;
-    padding-bottom:8px;
-    border-bottom:1px solid var(--line);
+    margin:0 0 16px;
     display:flex;
-    align-items:baseline;
-    gap:8px;
+    align-items:center;
+    gap:10px;
   }
-  section h2 .num{font-family:'JetBrains Mono',monospace;color:var(--green);font-size:13px;}
+  section h2 .badge{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:28px;height:28px;border-radius:50%;
+    font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:#fff;flex-shrink:0;
+  }
+  .accent-a h2 .badge{background:var(--green);}
+  .accent-b h2 .badge{background:var(--gold);}
+  .accent-c h2 .badge{background:var(--coral);}
+  .accent-d h2 .badge{background:var(--violet);}
 
   .panel{
     background:var(--panel);
     border:1px solid var(--line);
-    padding:22px;
+    border-top:4px solid var(--line);
+    border-radius:10px;
+    padding:24px;
   }
+  .accent-a .panel{border-top-color:var(--green);}
+  .accent-b .panel{border-top-color:var(--gold);}
+  .accent-c .panel{border-top-color:var(--coral);}
+  .accent-d .panel{border-top-color:var(--violet);}
 
   .field{margin-bottom:14px;}
   .field:last-child{margin-bottom:0;}
@@ -82,26 +110,28 @@
     font-family:inherit;
     font-size:14px;
     font-weight:700;
-    padding:10px 18px;
-    border:1px solid var(--ink);
-    background:var(--ink);
+    padding:10px 20px;
+    border:1px solid var(--green);
+    background:var(--green);
     color:#fff;
+    border-radius:8px;
     cursor:pointer;
+    transition:transform .1s ease, background .15s ease;
   }
-  button:hover{background:var(--green-deep);border-color:var(--green-deep);}
-  button.ghost{background:transparent;color:var(--ink);}
-  button.ghost:hover{background:var(--ink);color:#fff;}
-  button:disabled{opacity:.4;cursor:not-allowed;}
+  button:hover{background:var(--green-deep);border-color:var(--green-deep);transform:translateY(-1px);}
+  button.ghost{background:transparent;color:var(--ink);border-color:var(--line);}
+  button.ghost:hover{background:var(--ink);color:#fff;border-color:var(--ink);}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none;}
 
   .btn-row{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap;}
 
   .checkline{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink-soft);}
   .checkline input{width:auto;}
 
-  .status{font-size:13px;margin-top:12px;padding:10px 12px;border-left:3px solid var(--green);background:#f0f4f1;display:none;}
+  .status{font-size:13px;margin-top:12px;padding:10px 14px;border-radius:8px;border-left:4px solid var(--green);background:#eaf7f0;display:none;}
   .status.show{display:block;}
-  .status.error{border-color:var(--alert);background:#fbf0ee;color:var(--alert);}
-  .status.ok{border-color:var(--green);background:#f0f4f1;color:var(--green-deep);}
+  .status.error{border-color:var(--alert);background:#fcece9;color:var(--alert);}
+  .status.ok{border-color:var(--green);background:#eaf7f0;color:var(--green-deep);}
 
   .divider-or{
     text-align:center;
@@ -120,11 +150,11 @@
   .grid-2{display:grid;grid-template-columns:2.2fr 1fr;gap:20px;}
   @media (max-width:760px){.grid-2{grid-template-columns:1fr;}}
 
-  #cloudCanvas{width:100%;height:420px;display:block;background:#fff;border:1px solid var(--line);}
-  .cloud-note{font-size:12px;color:var(--ink-soft);margin-top:8px;}
+  #cloudCanvas{width:100%;height:420px;display:block;background:#fff;border-radius:8px;}
+  .cloud-note{font-size:12px;color:var(--ink-soft);margin-top:10px;}
 
   .cat-list{list-style:none;margin:0;padding:0;}
-  .cat-list li{margin-bottom:10px;}
+  .cat-list li{margin-bottom:14px;}
   .cat-btn{
     width:100%;
     text-align:left;
@@ -135,19 +165,20 @@
     font-weight:400;
     color:var(--ink);
   }
-  .cat-btn:hover{background:none;color:var(--green-deep);}
-  .cat-btn .cat-top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;}
+  .cat-btn:hover .cat-top span:first-child{color:var(--green-deep);}
+  .cat-btn .cat-top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;}
   .cat-btn .cat-count{font-family:'JetBrains Mono',monospace;color:var(--ink-soft);}
-  .cat-bar-bg{height:6px;background:var(--line);}
-  .cat-bar-fg{height:6px;background:var(--green);}
+  .cat-bar-bg{height:7px;background:var(--line);border-radius:6px;overflow:hidden;}
+  .cat-bar-fg{height:7px;border-radius:6px;}
 
-  .qlist-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .qlist-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
   .qlist-head .tag{
     font-family:'JetBrains Mono',monospace;
     font-size:13px;
-    background:var(--green);
+    background:var(--violet);
     color:#fff;
-    padding:3px 10px;
+    padding:4px 12px;
+    border-radius:20px;
   }
   .qitem{
     padding:12px 0;
@@ -159,19 +190,31 @@
   .empty-note{color:var(--ink-soft);font-size:13.5px;padding:20px 0;text-align:center;}
 
   footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-soft);}
+  .divider-or{color:var(--ink-soft);}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <header class="page">
-    <div class="eyebrow">QUESTION AGGREGATOR</div>
-    <h1>セミナーQ&A 集計ツール</h1>
-    <p>Googleフォームで集めた質問をスプレッドシートから読み込み、頻出キーワードと質問のグループを表示します。</p>
+    <div class="page-top">
+      <div>
+        <div class="eyebrow">QUESTION AGGREGATOR</div>
+        <h1>セミナーQ&A 集計ツール</h1>
+        <p>Googleフォームで集めた質問をスプレッドシートから読み込み、頻出キーワードと質問のグループを表示します。</p>
+      </div>
+      <svg class="hero-dots" viewBox="0 0 120 90" aria-hidden="true">
+        <circle cx="18" cy="62" r="14" fill="#2f9e64"/>
+        <circle cx="54" cy="28" r="20" fill="#f2a93b"/>
+        <circle cx="92" cy="54" r="12" fill="#ef6a52"/>
+        <circle cx="102" cy="18" r="8" fill="#7b6ef6"/>
+        <circle cx="34" cy="82" r="7" fill="#7b6ef6"/>
+      </svg>
+    </div>
   </header>
 
-  <section id="sourceSection">
-    <h2><span class="num">01</span>データソース</h2>
+  <section id="sourceSection" class="accent-a">
+    <h2><span class="badge">01</span>データソース</h2>
     <div class="panel">
       <div class="field">
         <label for="csvUrl">公開CSVのURL（スプレッドシートを「ウェブに公開」→ CSV 形式で取得したリンク）</label>
@@ -198,8 +241,8 @@
     </div>
   </section>
 
-  <section id="mapSection" style="display:none;">
-    <h2><span class="num">02</span>列の指定</h2>
+  <section id="mapSection" class="accent-b" style="display:none;">
+    <h2><span class="badge">02</span>列の指定</h2>
     <div class="panel">
       <div class="row">
         <div class="field">
@@ -221,8 +264,8 @@
     </div>
   </section>
 
-  <section id="resultSection" style="display:none;">
-    <h2><span class="num">03</span>頻出キーワードとカテゴリ</h2>
+  <section id="resultSection" class="accent-c" style="display:none;">
+    <h2><span class="badge">03</span>頻出キーワードとカテゴリ</h2>
     <div class="grid-2">
       <div class="panel">
         <canvas id="cloudCanvas"></canvas>
@@ -234,8 +277,8 @@
     </div>
   </section>
 
-  <section id="listSection" style="display:none;">
-    <h2><span class="num">04</span>質問一覧</h2>
+  <section id="listSection" class="accent-d" style="display:none;">
+    <h2><span class="badge">04</span>質問一覧</h2>
     <div class="panel">
       <div class="qlist-head">
         <div>絞り込み: <span class="tag" id="filterTag">全件</span></div>
@@ -453,6 +496,7 @@
     }
 
     var maxCount = list[0][1];
+    var palette = ["#1f7a4d","#2f9e64","#f2a93b","#ef6a52","#7b6ef6","#2fa8c9","#d6486b"];
 
     WordCloud(canvas, {
       list: list,
@@ -461,11 +505,8 @@
         return 12 + (size / maxCount) * 46;
       },
       fontFamily: "'Zen Kaku Gothic New', sans-serif",
-      color: function(word, weight){
-        var ratio = weight / maxCount;
-        if (ratio > 0.66) return "#2b4a37";
-        if (ratio > 0.33) return "#3f6b4f";
-        return "#b7912b";
+      color: function(word, weight, fontSize, distance, theta, idx){
+        return palette[idx % palette.length];
       },
       backgroundColor: "#ffffff",
       rotateRatio: 0,
@@ -485,13 +526,15 @@
       return;
     }
     var max = entries[0][1];
-    entries.forEach(function(e){
+    var palette = ["#2f9e64","#f2a93b","#ef6a52","#7b6ef6","#2fa8c9","#d6486b","#1f7a4d"];
+    entries.forEach(function(e, idx){
       var li = document.createElement("li");
       var pct = Math.round((e[1]/max)*100);
+      var color = palette[idx % palette.length];
       li.innerHTML =
         '<button class="cat-btn" data-cat="'+encodeURIComponent(e[0])+'">' +
           '<div class="cat-top"><span>'+escapeHtml(e[0])+'</span><span class="cat-count">'+e[1]+'</span></div>' +
-          '<div class="cat-bar-bg"><div class="cat-bar-fg" style="width:'+pct+'%"></div></div>' +
+          '<div class="cat-bar-bg"><div class="cat-bar-fg" style="width:'+pct+'%;background:'+color+'"></div></div>' +
         '</button>';
       els.catList.appendChild(li);
     });
