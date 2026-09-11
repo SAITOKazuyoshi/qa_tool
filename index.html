@@ -410,21 +410,26 @@
     else if (prevCat && state.headers.indexOf(prevCat) !== -1) els.catCol.value = prevCat;
   }
 
-  els.loadBtn.addEventListener("click", function(){
-    var url = els.csvUrl.value.trim();
-    if (!url){ showStatus("公開CSVのURLを入力してください。", "error"); return; }
+  function loadFromUrl(url){
     state.dataMode = "url";
     hideStatus();
     showStatus("読み込み中…", "ok");
-    fetch(url, { cache: "no-store" })
+    return fetch(url, { cache: "no-store" })
       .then(function(res){
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.text();
       })
-      .then(parseAndStore)
+      .then(function(text){ parseAndStore(text); })
       .catch(function(err){
         showStatus("読み込みに失敗しました（" + err.message + "）。スプレッドシートが「ウェブに公開」設定になっているか確認してください。CSVファイルのアップロードもお試しいただけます。", "error");
+        throw err;
       });
+  }
+
+  els.loadBtn.addEventListener("click", function(){
+    var url = els.csvUrl.value.trim();
+    if (!url){ showStatus("公開CSVのURLを入力してください。", "error"); return; }
+    loadFromUrl(url).catch(function(){ /* エラー表示は loadFromUrl 内で行い済み */ });
   });
 
   els.csvFile.addEventListener("change", function(e){
@@ -685,6 +690,42 @@
   document.addEventListener("fullscreenchange", function(){
     if (!document.fullscreenElement && presentationOn){ setPresentation(false); }
   });
+
+  // ---------- config.json による自動設定読み込み ----------
+  // 同じフォルダに config.json を置いておくと、ページを開くだけで
+  // CSV読み込み〜列指定〜集計〜自動更新設定までを自動実行する。
+  // config.json が無い場合は何もせず、通常の手動操作にフォールバックする。
+  function applyConfig(cfg){
+    if (!cfg || !cfg.csvUrl) return;
+    els.csvUrl.value = cfg.csvUrl;
+    if (typeof cfg.excludeWords === "string"){ els.excludeWords.value = cfg.excludeWords; }
+
+    loadFromUrl(cfg.csvUrl).then(function(){
+      if (cfg.questionColumn && state.headers.indexOf(cfg.questionColumn) !== -1){
+        els.qCol.value = cfg.questionColumn;
+      }
+      if (cfg.categoryColumn && state.headers.indexOf(cfg.categoryColumn) !== -1){
+        els.catCol.value = cfg.categoryColumn;
+      } else if (!cfg.categoryColumn) {
+        els.catCol.value = "";
+      }
+      runAggregate();
+
+      if (cfg.refreshIntervalMs){
+        var opt = els.refreshInterval.querySelector('option[value="'+cfg.refreshIntervalMs+'"]');
+        if (opt){ els.refreshInterval.value = String(cfg.refreshIntervalMs); }
+      }
+      if (cfg.autoRefresh){
+        els.autoRefresh.checked = true;
+        els.autoRefresh.dispatchEvent(new Event("change"));
+      }
+    }).catch(function(){ /* エラー表示は loadFromUrl 内で行い済み */ });
+  }
+
+  fetch("config.json", { cache: "no-store" })
+    .then(function(res){ return res.ok ? res.json() : null; })
+    .catch(function(){ return null; })
+    .then(applyConfig);
 
 })();
 </script>

@@ -1,4 +1,4 @@
-# セミナーQ&A 集計ツール
+# コエミル（セミナーQ&A集計ツール）
 
 Googleフォームで集めた質問をスプレッドシートから読み込み、頻出キーワードのワードクラウドと、
 クリックした単語・カテゴリで質問をグループ表示する単一HTMLツールです。サーバー不要、GitHub Pagesでそのまま公開できます。
@@ -21,7 +21,39 @@ Googleフォームで集めた質問をスプレッドシートから読み込�
 4. `Source` を `Deploy from a branch`、ブランチを `main`（または既定のブランチ）、フォルダを `/root` に設定して保存
 5. 数分後、`https://<ユーザー名>.github.io/<リポジトリ名>/` でアクセスできるようになる
 
-## 3. 使い方
+## 3. config.json で自動読み込みを設定する（推奨）
+
+`index.html` と同じ場所に `config.json` を置いておくと、ページを開くだけで
+CSV読み込み → 列指定 → 集計 → 自動更新設定までを自動で行います。
+セミナー当日は画面を開くだけで済むので、投影モードでの運用に向いています。
+
+```json
+{
+  "csvUrl": "https://docs.google.com/spreadsheets/d/e/XXXXXXXX/pub?gid=0&single=true&output=csv",
+  "questionColumn": "質問内容",
+  "categoryColumn": "カテゴリ",
+  "excludeWords": "質問, 教えて, ください",
+  "autoRefresh": true,
+  "refreshIntervalMs": 60000
+}
+```
+
+| 項目 | 内容 |
+|---|---|
+| `csvUrl` | 公開CSVのURL（`pub?...&output=csv` 形式） |
+| `questionColumn` | 質問文が入っている列名（スプレッドシートのヘッダーと完全一致させる） |
+| `categoryColumn` | カテゴリ列名。使わない場合は `""` にする |
+| `excludeWords` | 除外語をカンマ区切りで指定 |
+| `autoRefresh` | `true` にすると自動更新が有効になる |
+| `refreshIntervalMs` | 自動更新の間隔（ミリ秒）。30000 / 60000 / 300000 のいずれかに対応 |
+
+**運用方法**: セミナーやスプレッドシートの構成が変わるたびに、`config.json` の値を書き換えて
+GitHub上でコミットしてください（GitHub Pagesはブラウザから書き込みできないため、設定変更は
+このファイルの手動コミットで反映する運用になります）。
+
+`config.json` が存在しない場合は、これまで通り画面上でURL入力・列指定を手動で行う形にフォールバックします。
+
+## 4. 使い方（config.json を使わない場合）
 
 1. 公開したページを開き、CSVのURLを貼り付けて「読み込む」
 2. 「質問文の列」（必須）と「カテゴリの列」（任意）を選択

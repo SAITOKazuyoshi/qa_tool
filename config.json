@@ -1,0 +1,8 @@
+{
+  "csvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vR94QJfe3jDJ34ij1ihlO9U6iZypy60WQoqz5K46MXmrT4ouiZJ6BW5ic8tcIJxPYSVpYvyxErHnRC1/pub?output=csv",
+  "questionColumn": "質問内容",
+  "categoryColumn": "所属",
+  "excludeWords": "質問, 教えて, ください",
+  "autoRefresh": true,
+  "refreshIntervalMs": 60000
+}
