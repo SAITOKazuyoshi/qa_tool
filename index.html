@@ -269,7 +269,7 @@
     <div class="grid-2">
       <div class="panel">
         <canvas id="cloudCanvas"></canvas>
-        <p class="cloud-note">単語をクリックすると、その単語を含む質問を下に一覧表示します。</p>
+        <p class="cloud-note">単語の色は、最も多く紐づくカテゴリの色（右のカテゴリ一覧と同じ色）を表しています。カテゴリ未指定の場合は出現頻度の濃淡で表示されます。クリックすると、その単語を含む質問を下に一覧表示します。</p>
       </div>
       <div class="panel">
         <ul class="cat-list" id="catList"></ul>
@@ -442,6 +442,7 @@
     var questions = [];
     var freq = {};
     var catCount = {};
+    var wordCatCount = {};
 
     state.rows.forEach(function(row){
       var q = (row[qCol] || "").toString().trim();
@@ -458,12 +459,24 @@
         if (seen[w]) return; // 同じ質問内での重複は1回に
         seen[w] = true;
         freq[w] = (freq[w] || 0) + 1;
+        if (cat){
+          wordCatCount[w] = wordCatCount[w] || {};
+          wordCatCount[w][cat] = (wordCatCount[w][cat] || 0) + 1;
+        }
       });
     });
+
+    // カテゴリごとの色を、件数順に一度だけ確定させる（キーワード側と表示を揃えるため）
+    var palette = ["#2f9e64","#f2a93b","#ef6a52","#7b6ef6","#2fa8c9","#d6486b","#1f7a4d"];
+    var catRank = Object.keys(catCount).sort(function(a,b){ return catCount[b]-catCount[a]; });
+    var categoryColorMap = {};
+    catRank.forEach(function(c, idx){ categoryColorMap[c] = palette[idx % palette.length]; });
 
     state.questions = questions;
     state.freq = freq;
     state.catCount = catCount;
+    state.wordCatCount = wordCatCount;
+    state.categoryColorMap = categoryColorMap;
 
     renderWordCloud(freq);
     renderCategoryList(catCount);
@@ -496,7 +509,17 @@
     }
 
     var maxCount = list[0][1];
-    var palette = ["#1f7a4d","#2f9e64","#f2a93b","#ef6a52","#7b6ef6","#2fa8c9","#d6486b"];
+    var hasCategoryColors = state.categoryColorMap && Object.keys(state.categoryColorMap).length > 0;
+
+    function dominantCategoryColor(word){
+      var byCat = state.wordCatCount ? state.wordCatCount[word] : null;
+      if (!byCat) return null;
+      var best = null, bestCount = 0;
+      Object.keys(byCat).forEach(function(c){
+        if (byCat[c] > bestCount){ best = c; bestCount = byCat[c]; }
+      });
+      return best ? state.categoryColorMap[best] : null;
+    }
 
     WordCloud(canvas, {
       list: list,
@@ -505,8 +528,16 @@
         return 12 + (size / maxCount) * 46;
       },
       fontFamily: "'Zen Kaku Gothic New', sans-serif",
-      color: function(word, weight, fontSize, distance, theta, idx){
-        return palette[idx % palette.length];
+      color: function(word, weight){
+        if (hasCategoryColors){
+          var c = dominantCategoryColor(word);
+          if (c) return c;
+        }
+        // カテゴリ未指定、またはカテゴリに結びつかない語は頻出度の濃淡で表現
+        var ratio = weight / maxCount;
+        if (ratio > 0.66) return "#1f7a4d";
+        if (ratio > 0.33) return "#2f9e64";
+        return "#8fc7a4";
       },
       backgroundColor: "#ffffff",
       rotateRatio: 0,
@@ -526,11 +557,11 @@
       return;
     }
     var max = entries[0][1];
-    var palette = ["#2f9e64","#f2a93b","#ef6a52","#7b6ef6","#2fa8c9","#d6486b","#1f7a4d"];
-    entries.forEach(function(e, idx){
+    var colorMap = state.categoryColorMap || {};
+    entries.forEach(function(e){
       var li = document.createElement("li");
       var pct = Math.round((e[1]/max)*100);
-      var color = palette[idx % palette.length];
+      var color = colorMap[e[0]] || "#2f9e64";
       li.innerHTML =
         '<button class="cat-btn" data-cat="'+encodeURIComponent(e[0])+'">' +
           '<div class="cat-top"><span>'+escapeHtml(e[0])+'</span><span class="cat-count">'+e[1]+'</span></div>' +
