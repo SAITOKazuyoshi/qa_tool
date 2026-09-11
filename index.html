@@ -191,9 +191,54 @@
 
   footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-soft);}
   .divider-or{color:var(--ink-soft);}
+
+  /* ---- 投影モード切替ボタン（常時表示） ---- */
+  .mode-bar{position:fixed;top:16px;right:16px;z-index:1000;}
+  .mode-btn{
+    font-size:12.5px;padding:9px 16px;background:#fff;color:var(--ink);
+    border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.08);
+    border-radius:20px;
+  }
+  .mode-btn:hover{background:var(--ink);color:#fff;transform:none;}
+  body.presentation .mode-btn{opacity:.3;}
+  body.presentation .mode-btn:hover{opacity:1;}
+
+  /* ---- 投影モード：会場のスクリーンから見やすい大きな表示に切替 ---- */
+  body.presentation{background:#ffffff;}
+  body.presentation header.page,
+  body.presentation #sourceSection,
+  body.presentation #mapSection,
+  body.presentation .cloud-note,
+  body.presentation footer{display:none;}
+
+  body.presentation .wrap{max-width:100%;padding:28px 40px 60px;}
+
+  body.presentation section h2{font-size:22px;margin-bottom:20px;}
+  body.presentation section h2 .badge{width:36px;height:36px;font-size:15px;}
+
+  body.presentation .panel{border-top-width:6px;padding:28px;}
+  body.presentation .grid-2{grid-template-columns:2.4fr 1fr;gap:28px;}
+
+  body.presentation #cloudCanvas{height:64vh;}
+
+  body.presentation .cat-btn .cat-top{font-size:19px;margin-bottom:8px;}
+  body.presentation .cat-bar-bg, body.presentation .cat-bar-fg{height:13px;}
+  body.presentation .cat-list li{margin-bottom:22px;}
+
+  body.presentation .qlist-head .tag{font-size:19px;padding:6px 16px;}
+  body.presentation #qListBody{max-height:56vh;overflow-y:auto;}
+  body.presentation .qitem{font-size:23px;padding:18px 0;}
+  body.presentation .qitem .qmeta{font-size:15px;}
+
+  @media (max-width:900px){
+    body.presentation .grid-2{grid-template-columns:1fr;}
+  }
 </style>
 </head>
 <body>
+<div class="mode-bar">
+  <button id="presentModeBtn" class="ghost mode-btn" type="button">投影モードで表示</button>
+</div>
 <div class="wrap">
 
   <header class="page">
@@ -318,7 +363,7 @@
   ["csvUrl","loadBtn","autoRefresh","refreshInterval","csvFile","statusBox",
    "mapSection","qCol","catCol","excludeWords","aggregateBtn",
    "resultSection","cloudCanvas","catList",
-   "listSection","filterTag","qListBody","clearFilterBtn"
+   "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn"
   ].forEach(function(id){ els[id] = document.getElementById(id); });
 
   function showStatus(msg, type){
@@ -614,6 +659,29 @@
 
   window.addEventListener("resize", function(){
     if (state.freq) renderWordCloud(state.freq);
+  });
+
+  // ---------- 投影モード（会場プロジェクタ表示用） ----------
+  var presentationOn = false;
+  function setPresentation(on){
+    presentationOn = on;
+    document.body.classList.toggle("presentation", on);
+    els.presentModeBtn.textContent = on ? "編集画面に戻る" : "投影モードで表示";
+    // レイアウト変更後にキャンバス幅を再計算
+    setTimeout(function(){ if (state.freq) renderWordCloud(state.freq); }, 150);
+  }
+  els.presentModeBtn.addEventListener("click", function(){
+    var goingOn = !presentationOn;
+    setPresentation(goingOn);
+    if (goingOn){
+      var el = document.documentElement;
+      if (el.requestFullscreen){ el.requestFullscreen().catch(function(){}); }
+    } else if (document.fullscreenElement && document.exitFullscreen){
+      document.exitFullscreen().catch(function(){});
+    }
+  });
+  document.addEventListener("fullscreenchange", function(){
+    if (!document.fullscreenElement && presentationOn){ setPresentation(false); }
   });
 
 })();
