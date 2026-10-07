@@ -205,35 +205,67 @@
   body.presentation .mode-btn:hover{opacity:1;}
 
   /* ---- 投影モード：会場のスクリーンから見やすい大きな表示に切替 ---- */
-  body.presentation{background:#ffffff;}
+  /* カテゴリ一覧・質問一覧・各種設定を隠し、ワードクラウドだけを画面いっぱいに表示する */
+  body.presentation{background:#ffffff;overflow:hidden;}
   body.presentation header.page,
   body.presentation #sourceSection,
   body.presentation #mapSection,
+  body.presentation #listSection,
+  body.presentation #resultSection > h2,
+  body.presentation .cat-panel,
   body.presentation .cloud-note,
   body.presentation footer{display:none !important;}
 
-  body.presentation .wrap{max-width:100%;padding:28px 40px 60px;}
-
-  body.presentation section h2{font-size:22px;margin-bottom:20px;}
-  body.presentation section h2 .badge{width:36px;height:36px;font-size:15px;}
-
-  body.presentation .panel{border-top-width:6px;padding:28px;}
-  body.presentation .grid-2{grid-template-columns:2.4fr 1fr;gap:28px;}
-
-  body.presentation #cloudCanvas{height:64vh;}
-
-  body.presentation .cat-btn .cat-top{font-size:19px;margin-bottom:8px;}
-  body.presentation .cat-bar-bg, body.presentation .cat-bar-fg{height:13px;}
-  body.presentation .cat-list li{margin-bottom:22px;}
-
-  body.presentation .qlist-head .tag{font-size:19px;padding:6px 16px;}
-  body.presentation #qListBody{max-height:56vh;overflow-y:auto;}
-  body.presentation .qitem{font-size:23px;padding:18px 0;}
-  body.presentation .qitem .qmeta{font-size:15px;}
-
-  @media (max-width:900px){
-    body.presentation .grid-2{grid-template-columns:1fr;}
+  body.presentation .wrap{max-width:100%;padding:0;}
+  body.presentation #resultSection{margin:0;height:100vh;}
+  body.presentation .grid-2{display:block;height:100%;}
+  body.presentation .cloud-panel{
+    height:100%;border:0;border-top:6px solid var(--coral);border-radius:0;padding:12px;
   }
+  body.presentation #cloudCanvas{border-radius:0;}
+
+  /* ---- キーワードをクリックしたときのポップアップ ---- */
+  .kw-modal{
+    position:fixed;inset:0;z-index:2000;display:none;
+    align-items:center;justify-content:center;
+    background:rgba(32,38,31,.55);padding:24px;cursor:pointer;
+  }
+  .kw-modal.show{display:flex;}
+  .kw-card{
+    background:#fff;border-radius:16px;border-top:8px solid var(--green);
+    box-shadow:0 20px 60px rgba(0,0,0,.35);
+    width:min(1100px,94vw);max-height:90vh;
+    display:flex;flex-direction:column;cursor:default;
+  }
+  .kw-head{
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:18px 26px 12px;border-bottom:1px solid var(--line);flex-shrink:0;
+  }
+  .kw-title{font-size:26px;font-weight:900;}
+  .kw-title .kw-word{color:var(--kw-color,var(--green-deep));}
+  .kw-title .kw-count{
+    font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;
+    color:var(--ink-soft);margin-left:12px;
+  }
+  .kw-close{padding:6px 14px;font-size:20px;line-height:1;border-radius:20px;}
+  .kw-body{padding:6px 26px 18px;overflow-y:auto;column-gap:40px;}
+  .kw-item{
+    font-size:var(--kw-fs,17px);line-height:1.5;
+    padding:.55em 0;border-bottom:1px solid var(--line);
+    break-inside:avoid;
+  }
+  .kw-item:last-child{border-bottom:none;}
+  .kw-item .qmeta{
+    font-family:'JetBrains Mono',monospace;font-size:11.5px;
+    color:var(--ink-soft);margin-bottom:2px;
+  }
+  .kw-item mark{
+    background:linear-gradient(transparent 55%, rgba(242,169,59,.55) 55%);
+    color:inherit;font-weight:700;
+  }
+  body.presentation .kw-title{font-size:clamp(26px,2.6vw,48px);}
+  body.presentation .kw-title .kw-count{font-size:clamp(15px,1.4vw,26px);}
+  body.presentation .kw-item .qmeta{display:none;}
 </style>
 </head>
 <body>
@@ -314,11 +346,11 @@
   <section id="resultSection" class="accent-c" style="display:none;">
     <h2><span class="badge">03</span>ワードクラウドとカテゴリ</h2>
     <div class="grid-2">
-      <div class="panel">
+      <div class="panel cloud-panel">
         <canvas id="cloudCanvas"></canvas>
-        <p class="cloud-note">単語の色は、最も多く紐づくカテゴリの色（右のカテゴリ一覧と同じ色）を表しています。カテゴリ未指定の場合は出現頻度の濃淡で表示されます。クリックすると、その単語を含む質問を下に一覧表示します。</p>
+        <p class="cloud-note">単語の色は、最も多く紐づくカテゴリの色（右のカテゴリ一覧と同じ色）を表しています。カテゴリ未指定の場合は出現頻度の濃淡で表示されます。クリックすると、その単語を含む質問がポップアップで表示されます。</p>
       </div>
-      <div class="panel">
+      <div class="panel cat-panel">
         <ul class="cat-list" id="catList"></ul>
       </div>
     </div>
@@ -339,6 +371,16 @@
     データはブラウザ内でのみ処理され、外部には送信されません。集計対象は指定したスプレッドシートの内容のみです。
   </footer>
 
+</div>
+
+<div class="kw-modal" id="kwModal" role="dialog" aria-modal="true" aria-labelledby="kwTitle">
+  <div class="kw-card" id="kwCard">
+    <div class="kw-head">
+      <div class="kw-title" id="kwTitle"></div>
+      <button type="button" class="ghost kw-close" id="kwClose" aria-label="閉じる">×</button>
+    </div>
+    <div class="kw-body" id="kwBody"></div>
+  </div>
 </div>
 
 <script>
@@ -365,7 +407,8 @@
   ["csvUrl","loadBtn","autoRefresh","refreshInterval","csvFile","statusBox",
    "mapSection","qCol","catCol","excludeWords","aggregateBtn",
    "resultSection","cloudCanvas","catList",
-   "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn"
+   "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn",
+   "kwModal","kwCard","kwTitle","kwBody","kwClose"
   ].forEach(function(id){ els[id] = document.getElementById(id); });
 
   function showStatus(msg, type){
@@ -533,6 +576,8 @@
     renderWordCloud(freq);
     renderCategoryList(catCount);
     renderQuestionList(null);
+    // 自動更新で再集計されたときも、開いているポップアップは最新の質問に更新する
+    if (state.popupWord){ openKeywordPopup(state.popupWord); }
 
     els.resultSection.style.display = "block";
     els.listSection.style.display = "block";
@@ -542,14 +587,38 @@
 
   // ---------- ワードクラウド描画 ----------
   function renderWordCloud(freq){
+    var inPresentation = document.body.classList.contains("presentation");
     var list = Object.keys(freq).map(function(w){ return [w, freq[w]]; });
     list.sort(function(a,b){ return b[1]-a[1]; });
-    list = list.slice(0, 60);
+    // 投影モードは画面が広いので、表示する単語数を増やす
+    list = list.slice(0, inPresentation ? 90 : 60);
 
+    // キャンバスの大きさ：通常時は幅いっぱい×420px、投影モードでは画面いっぱい
     var canvas = els.cloudCanvas;
-    var parentWidth = canvas.parentElement.clientWidth - 44; // panel padding分を差し引き
-    canvas.width = Math.max(parentWidth, 300);
-    canvas.height = 420;
+    var panel = canvas.parentElement;
+    // 前回のサイズが残っていると親パネルの幅まで押し広げてしまうため、測る前にいったんリセットする
+    canvas.style.width = "";
+    canvas.style.height = "";
+    canvas.width = 1;
+    canvas.height = 1;
+    var cs = getComputedStyle(panel);
+    var padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    var padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    var cw = Math.max(panel.clientWidth - padX, 300);
+    var ch = inPresentation ? Math.max(panel.clientHeight - padY, 240) : 420;
+    canvas.width = cw;
+    canvas.height = ch;
+    if (inPresentation){
+      canvas.style.width = cw + "px";
+      canvas.style.height = ch + "px";
+    } else {
+      canvas.style.width = "";
+      canvas.style.height = "";
+    }
+    // 画面が大きいほど文字も大きくする（投影モードのみ）
+    var scale = inPresentation ? Math.max(1, Math.min(cw / 900, ch / 460)) : 1;
+
+    if (typeof WordCloud.stop === "function"){ WordCloud.stop(); }
 
     if (!list.length){
       var ctx = canvas.getContext("2d");
@@ -563,26 +632,20 @@
     var maxCount = list[0][1];
     var hasCategoryColors = state.categoryColorMap && Object.keys(state.categoryColorMap).length > 0;
 
-    function dominantCategoryColor(word){
-      var byCat = state.wordCatCount ? state.wordCatCount[word] : null;
-      if (!byCat) return null;
-      var best = null, bestCount = 0;
-      Object.keys(byCat).forEach(function(c){
-        if (byCat[c] > bestCount){ best = c; bestCount = byCat[c]; }
-      });
-      return best ? state.categoryColorMap[best] : null;
-    }
-
     WordCloud(canvas, {
       list: list,
-      gridSize: Math.round(canvas.width / 90),
+      gridSize: inPresentation ? Math.max(6, Math.round(7 * scale)) : Math.round(canvas.width / 90),
       weightFactor: function(size){
-        return 12 + (size / maxCount) * 46;
+        // 投影モードは最小サイズも大きめにして、画面を使い切る
+        var base = inPresentation ? (18 + (size / maxCount) * 60) : (12 + (size / maxCount) * 46);
+        return base * scale;
       },
       fontFamily: "'Zen Kaku Gothic New', sans-serif",
+      shape: inPresentation ? "square" : "circle",
+      shrinkToFit: true,
       color: function(word, weight){
         if (hasCategoryColors){
-          var c = dominantCategoryColor(word);
+          var c = wordCategoryColor(word);
           if (c) return c;
         }
         // カテゴリ未指定、またはカテゴリに結びつかない語は頻出度の濃淡で表現
@@ -595,9 +658,84 @@
       rotateRatio: 0,
       click: function(item){
         renderQuestionList({ type:"word", value:item[0] });
+        openKeywordPopup(item[0]);
       }
     });
   }
+
+  // 単語に最も多く紐づくカテゴリの色（単語の色・ポップアップの色に使う）
+  function wordCategoryColor(word){
+    var byCat = state.wordCatCount ? state.wordCatCount[word] : null;
+    if (!byCat || !state.categoryColorMap) return null;
+    var best = null, bestCount = 0;
+    Object.keys(byCat).forEach(function(c){
+      if (byCat[c] > bestCount){ best = c; bestCount = byCat[c]; }
+    });
+    return best ? state.categoryColorMap[best] : null;
+  }
+
+  // ---------- キーワードのポップアップ ----------
+  function openKeywordPopup(word){
+    var items = (state.questions || []).filter(function(q){ return q.question.indexOf(word) !== -1; });
+    if (!items.length){ closeKeywordPopup(); return; }
+    state.popupWord = word;
+
+    var color = wordCategoryColor(word) || "#2f9e64";
+    els.kwCard.style.borderTopColor = color;
+    els.kwCard.style.setProperty("--kw-color", color);
+    els.kwTitle.innerHTML = '「<span class="kw-word">' + escapeHtml(word) + '</span>」を含む質問' +
+                            '<span class="kw-count">' + items.length + '件</span>';
+
+    var w = escapeHtml(word);
+    els.kwBody.innerHTML = items.map(function(q){
+      var text = escapeHtml(q.question).split(w).join("<mark>" + w + "</mark>");
+      var meta = q.category ? '<div class="qmeta">' + escapeHtml(q.category) + '</div>' : "";
+      return '<div class="kw-item">' + meta + text + '</div>';
+    }).join("");
+
+    // 投影モード：件数が多いときは段組み（2〜3列）にして、文字を大きく保ったままスクロールなしで収める
+    var presentation = document.body.classList.contains("presentation");
+    var n = items.length;
+    var cols = presentation ? (n <= 6 ? 1 : n <= 14 ? 2 : 3) : 1;
+    els.kwCard.style.width = cols > 1 ? "min(1700px,96vw)" : "";
+    els.kwBody.style.columnCount = cols > 1 ? String(cols) : "";
+
+    // 文字サイズ：1列あたりの行数が少ないほど大きく
+    var fs = 17;
+    if (presentation){
+      var vw = window.innerWidth / 100;
+      var rows = Math.ceil(n / cols);
+      var ratio = rows <= 3 ? 2.6 : rows <= 5 ? 2.2 : rows <= 7 ? 1.8 : rows <= 9 ? 1.5 : 1.25;
+      fs = Math.max(18, Math.round(ratio * vw));
+    }
+    els.kwCard.style.setProperty("--kw-fs", fs + "px");
+    els.kwModal.classList.add("show");
+
+    // それでもはみ出す場合は、収まるまで文字を小さくする
+    var minFs = presentation ? 14 : 16;
+    var guard = 0;
+    function overflowing(){
+      return els.kwBody.scrollHeight > els.kwBody.clientHeight + 1 ||
+             els.kwBody.scrollWidth > els.kwBody.clientWidth + 1;
+    }
+    while (overflowing() && fs > minFs && guard++ < 40){
+      fs -= 2;
+      els.kwCard.style.setProperty("--kw-fs", fs + "px");
+    }
+    els.kwBody.scrollTop = 0;
+  }
+
+  function closeKeywordPopup(){
+    els.kwModal.classList.remove("show");
+    state.popupWord = null;
+  }
+
+  // 画面のどこをクリックしても閉じる（投影中にマウス操作だけで閉じられるように）
+  els.kwModal.addEventListener("click", closeKeywordPopup);
+  els.kwClose.addEventListener("click", function(e){ e.stopPropagation(); closeKeywordPopup(); });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && els.kwModal.classList.contains("show")){ closeKeywordPopup(); }
+  });
 
   // ---------- カテゴリ一覧描画 ----------
   function renderCategoryList(catCount){
