@@ -193,6 +193,16 @@
   footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-soft);}
   .divider-or{color:var(--ink-soft);}
 
+  /* ---- データソース固定モード（config.json の lockDataSource: true） ----
+     URL入力・読み込みボタン・CSVアップロードを隠し、config.json の csvUrl だけを使う */
+  .lock-note{
+    display:none;margin:0;padding:10px 14px;border-radius:8px;
+    background:#f6f2e2;border-left:4px solid var(--gold);
+    color:var(--ink-soft);font-size:13px;
+  }
+  body.source-locked .lock-note{display:block;}
+  body.source-locked .src-input{display:none !important;}
+
   /* ---- 投影モード切替ボタン（常時表示） ---- */
   .mode-bar{position:fixed;top:16px;right:16px;z-index:1000;}
   .mode-btn{
@@ -295,12 +305,13 @@
   <section id="sourceSection" class="accent-a">
     <h2><span class="badge">01</span>データソース</h2>
     <div class="panel">
-      <div class="field">
+      <p class="lock-note" id="lockNote">データソースは config.json で固定されています（この画面では変更できません）。</p>
+      <div class="field src-input">
         <label for="csvUrl">公開CSVのURL（スプレッドシートを「ウェブに公開」→ CSV 形式で取得したリンク）</label>
         <input type="url" id="csvUrl" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv">
       </div>
       <div class="btn-row">
-        <button id="loadBtn">読み込む</button>
+        <button id="loadBtn" class="src-input">読み込む</button>
         <label class="checkline"><input type="checkbox" id="autoRefresh"> 自動更新</label>
         <select id="refreshInterval" style="width:auto;">
           <option value="30000">30秒ごと</option>
@@ -309,9 +320,9 @@
         </select>
       </div>
 
-      <div class="divider-or">または</div>
+      <div class="divider-or src-input">または</div>
 
-      <div class="field">
+      <div class="field src-input">
         <label for="csvFile">CSVファイルをアップロード（非公開のまま使う場合。自動更新は不可）</label>
         <input type="file" id="csvFile" accept=".csv">
       </div>
@@ -402,6 +413,7 @@
     refreshTimer: null,
     refreshing: false,   // 自動更新の通信中フラグ（重複実行を防ぐ）
     refreshFailed: false, // 直前の自動更新が通信エラーだったか
+    sourceLocked: false,  // config.json の lockDataSource が true（画面からデータソースを変更できない）
     lastCsvText: null,   // 前回取得したCSVの中身（自動更新で変化を検知するために使う）
     dataMode: null       // "url" または "file"
   };
@@ -481,18 +493,23 @@
         parseAndStore(text);
       })
       .catch(function(err){
-        showStatus("読み込みに失敗しました（" + err.message + "）。スプレッドシートが「ウェブに公開」設定になっているか確認してください。CSVファイルのアップロードもお試しいただけます。", "error");
+        var hint = state.sourceLocked
+          ? "config.json の csvUrl と、スプレッドシートの「ウェブに公開」設定を確認してください。"
+          : "スプレッドシートが「ウェブに公開」設定になっているか確認してください。CSVファイルのアップロードもお試しいただけます。";
+        showStatus("読み込みに失敗しました（" + err.message + "）。" + hint, "error");
         throw err;
       });
   }
 
   els.loadBtn.addEventListener("click", function(){
+    if (state.sourceLocked) return;   // データソース固定中は、画面からの読み込みは受け付けない
     var url = els.csvUrl.value.trim();
     if (!url){ showStatus("公開CSVのURLを入力してください。", "error"); return; }
     loadFromUrl(url).catch(function(){ /* エラー表示は loadFromUrl 内で行い済み */ });
   });
 
   els.csvFile.addEventListener("change", function(e){
+    if (state.sourceLocked) return;   // データソース固定中は、CSVアップロードも受け付けない
     var file = e.target.files[0];
     if (!file) return;
     state.dataMode = "file";
@@ -886,7 +903,20 @@
   // CSV読み込み〜列指定〜集計〜自動更新設定までを自動実行する。
   // config.json が無い場合は何もせず、通常の手動操作にフォールバックする。
   function applyConfig(cfg){
-    if (!cfg || !cfg.csvUrl) return;
+    // データソース固定モード：lockDataSource が true のとき、URL入力・CSVアップロードを画面から隠し、
+    // config.json の csvUrl だけを使う（誤操作で別のデータに切り替わらないようにするための機能）。
+    if (cfg && (cfg.lockDataSource === true || cfg.lockDataSource === "true")){
+      state.sourceLocked = true;
+      document.body.classList.add("source-locked");
+    }
+
+    if (!cfg || !cfg.csvUrl){
+      if (state.sourceLocked){
+        // 固定モードで csvUrl が無いと何も操作できなくなるため、原因をはっきり表示する
+        showStatus("データソースが固定されていますが、config.json に csvUrl が設定されていません。config.json を確認してください。", "error");
+      }
+      return;
+    }
     els.csvUrl.value = cfg.csvUrl;
     if (typeof cfg.excludeWords === "string"){ els.excludeWords.value = cfg.excludeWords; }
 
@@ -913,7 +943,14 @@
   }
 
   fetch("config.json", { cache: "no-store" })
-    .then(function(res){ return res.ok ? res.json() : null; })
+    .then(function(res){
+      if (!res.ok) return null;   // config.json が無い → 通常の手動モード
+      return res.json().catch(function(){
+        // ファイルはあるが書き方が誤っている場合は、気づけるように表示する
+        showStatus("config.json の形式が正しくありません。JSONの書き方（カンマや引用符など）を確認してください。", "error");
+        return null;
+      });
+    })
     .catch(function(){ return null; })
     .then(applyConfig);
 
