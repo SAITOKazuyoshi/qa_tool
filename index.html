@@ -400,6 +400,9 @@
     rows: [],          // 生データ（オブジェクト配列）
     questions: [],      // {question, category}
     refreshTimer: null,
+    refreshing: false,   // 自動更新の通信中フラグ（重複実行を防ぐ）
+    refreshFailed: false, // 直前の自動更新が通信エラーだったか
+    lastCsvText: null,   // 前回取得したCSVの中身（自動更新で変化を検知するために使う）
     dataMode: null       // "url" または "file"
   };
 
@@ -424,16 +427,19 @@
     var parsed = Papa.parse(csvText, { header:true, skipEmptyLines:true });
     if (!parsed.data || !parsed.data.length){
       showStatus("データが読み取れませんでした。CSVの内容を確認してください。", "error");
-      return;
+      return false;
     }
     state.headers = parsed.meta.fields || Object.keys(parsed.data[0]);
     state.rows = parsed.data;
     populateColumnSelectors();
     els.mapSection.style.display = "block";
     showStatus(parsed.data.length + " 件の行を読み込みました。列を指定して「集計する」を押してください。", "ok");
+    return true;
   }
 
   function populateColumnSelectors(){
+    // 2回目以降の読み込み（自動更新を含む）かどうか。その場合は、選択済みの列を維持する
+    var hadColumns = els.qCol.options.length > 0;
     var prevQ = els.qCol.value, prevCat = els.catCol.value;
     els.qCol.innerHTML = "";
     els.catCol.innerHTML = '<option value="">（なし）</option>';
@@ -443,14 +449,22 @@
       var o2 = document.createElement("option"); o2.value = h; o2.textContent = h;
       els.catCol.appendChild(o2);
     });
-    // 質問文らしい列名を自動選択
-    var guess = state.headers.find(function(h){ return h.indexOf("質問") !== -1; });
-    if (guess) els.qCol.value = guess;
-    else if (prevQ && state.headers.indexOf(prevQ) !== -1) els.qCol.value = prevQ;
 
-    var catGuess = state.headers.find(function(h){ return h.indexOf("カテゴリ") !== -1 || h.indexOf("分類") !== -1; });
-    if (catGuess) els.catCol.value = catGuess;
-    else if (prevCat && state.headers.indexOf(prevCat) !== -1) els.catCol.value = prevCat;
+    // 質問文の列：前回の選択が残っていればそれを優先。なければ「質問」を含む列名を自動選択
+    if (hadColumns && state.headers.indexOf(prevQ) !== -1){
+      els.qCol.value = prevQ;
+    } else {
+      var guess = state.headers.find(function(h){ return h.indexOf("質問") !== -1; });
+      if (guess) els.qCol.value = guess;
+    }
+
+    // カテゴリの列：同様。「（なし）」を選んでいた場合もそのまま維持する
+    if (hadColumns && (prevCat === "" || state.headers.indexOf(prevCat) !== -1)){
+      els.catCol.value = prevCat;
+    } else {
+      var catGuess = state.headers.find(function(h){ return h.indexOf("カテゴリ") !== -1 || h.indexOf("分類") !== -1; });
+      if (catGuess) els.catCol.value = catGuess;
+    }
   }
 
   function loadFromUrl(url){
@@ -462,7 +476,10 @@
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.text();
       })
-      .then(function(text){ parseAndStore(text); })
+      .then(function(text){
+        state.lastCsvText = text;   // 自動更新で「前回から変化したか」を比べる基準にする
+        parseAndStore(text);
+      })
       .catch(function(err){
         showStatus("読み込みに失敗しました（" + err.message + "）。スプレッドシートが「ウェブに公開」設定になっているか確認してください。CSVファイルのアップロードもお試しいただけます。", "error");
         throw err;
@@ -479,6 +496,7 @@
     var file = e.target.files[0];
     if (!file) return;
     state.dataMode = "file";
+    state.lastCsvText = null;
     els.autoRefresh.checked = false;
     var reader = new FileReader();
     reader.onload = function(evt){ parseAndStore(evt.target.result); };
@@ -495,13 +513,47 @@
         return;
       }
       var ms = parseInt(els.refreshInterval.value, 10);
-      state.refreshTimer = setInterval(function(){
-        els.loadBtn.click();
-        // 再集計まで自動で行う
-        setTimeout(function(){ if (state.rows.length) runAggregate(); }, 800);
-      }, ms);
+      state.refreshTimer = setInterval(refreshIfChanged, ms);
     }
   });
+
+  // 一定間隔でCSVを取得し、前回から内容が変わっていたときだけ再集計・再描画する。
+  // 変化がなければ何もしない（ワードクラウドの配置も、開いているポップアップもそのまま）。
+  // 追加だけでなく、修正・削除があった場合も反映する。
+  function refreshIfChanged(){
+    var url = els.csvUrl.value.trim();
+    if (!url || state.refreshing) return;
+    state.refreshing = true;
+    fetch(url, { cache: "no-store" })
+      .then(function(res){
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.text();
+      })
+      .then(function(text){
+        if (text === state.lastCsvText){              // 変化なし
+          if (state.refreshFailed){                   // 通信エラーから復旧したときだけ表示を戻す
+            state.refreshFailed = false;
+            showStatus("自動更新が復旧しました（合計 " + state.questions.length + " 件・変更なし）", "ok");
+          }
+          return;
+        }
+        state.refreshFailed = false;
+        var before = state.questions.length;
+        state.lastCsvText = text;
+        if (!parseAndStore(text)) return;             // 読み取れないデータなら、表示は前回のまま
+        runAggregate();
+        var added = state.questions.length - before;
+        showStatus(
+          (added > 0 ? "新しい質問が " + added + " 件追加されました" : "データが更新されました") +
+          "（合計 " + state.questions.length + " 件）", "ok");
+      })
+      .catch(function(err){
+        // 通信エラーのときは表示を変えず、次回の更新で再試行する
+        state.refreshFailed = true;
+        showStatus("自動更新に失敗しました（" + err.message + "）。次回の更新で再試行します。", "error");
+      })
+      .then(function(){ state.refreshing = false; });
+  }
   els.refreshInterval.addEventListener("change", function(){
     if (els.autoRefresh.checked){ els.autoRefresh.checked = false; els.autoRefresh.dispatchEvent(new Event("change")); els.autoRefresh.checked = true; els.autoRefresh.dispatchEvent(new Event("change")); }
   });
