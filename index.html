@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"></script>
 <style>
   :root{
     --ink:#20261f;
@@ -403,10 +404,23 @@
     "質問","教えて","ください","お願いします","でしょうか","ですか","こんにちは",
     "セミナー","本日","今回","今日","自分","場合","以下","以上","こちら","それ",
     "これ","その他","説明","内容","対応","確認","可能","不可","何か","何が",
-    "現在","今後","一つ","二つ","三つ"
+    "現在","今後","一つ","二つ","三つ",
+    // 形態素解析では名詞として拾われるが、質問の話題にはならない語
+    "具体","程度","見込み","見通し","取り組み","可能性","考え","状況"
   ];
 
+  // ---- 形態素解析（Kuromoji.js） ----
+  // 辞書（約18MB）はCDNから読み込む。ブラウザにキャッシュされるため、2回目以降は速い。
+  var KUROMOJI_DICT_PATH = "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/";
+  // 名詞につなげない接尾辞（「効果的」「大雪時」ではなく「効果」「大雪」を残す）
+  var SUFFIX_NO_MERGE = ["的","時","後","前","中","等","毎","様","風","以外","以上","以下","以内","ごと","向け","向き","ずつ"];
+  // 次の名詞につなげる接頭辞（新＋千歳空港 → 新千歳空港）
+  var PREFIX_MERGE = ["新","旧","脱","全","総","超","準","元"];
+
   var state = {
+    tokenizer: null,          // 形態素解析器（読み込み完了後にセットされる）
+    tokenizerStatus: "loading", // "loading" | "ready" | "failed"
+    aggregated: false,        // 一度でも集計したか
     headers: [],
     rows: [],          // 生データ（オブジェクト配列）
     questions: [],      // {question, category}
@@ -576,11 +590,17 @@
   });
 
   // ---------- キーワード抽出 ----------
+  // 質問文から単語を取り出す。辞書の読み込みが済んでいれば形態素解析、そうでなければ簡易抽出。
   function extractKeywords(text){
     if (!text) return [];
+    return state.tokenizer ? extractByMorphology(text) : extractBySimplePattern(text);
+  }
+
+  // 簡易抽出：漢字・カタカナ・英数字の連続を単語とみなす（辞書が使えないときの代替）
+  function extractBySimplePattern(text){
     var patterns = [
-      /[\u4E00-\u9FFF]{2,}/g,   // 漢字の連続（2文字以上）
-      /[\u30A0-\u30FF]{2,}/g,   // カタカナの連続（2文字以上）
+      /[一-鿿]{2,}/g,   // 漢字の連続（2文字以上）
+      /[゠-ヿ]{2,}/g,   // カタカナの連続（2文字以上）
       /[A-Za-z0-9]{2,}/g        // 英数字の連続（2文字以上）
     ];
     var words = [];
@@ -589,6 +609,107 @@
       if (m) words = words.concat(m);
     });
     return words;
+  }
+
+  // 形態素解析：名詞だけを取り出し、「駐車＋場」「新＋千歳空港」のような部品をつなげて1語にする
+  function isKatakanaWord(s){ return /^[゠-ヿ]+$/.test(s); }
+
+  function classifyToken(t){
+    var s = t.surface_form;
+    if (t.pos === "接頭詞"){
+      return (t.pos_detail_1 === "名詞接続" && PREFIX_MERGE.indexOf(s) !== -1) ? "prefix" : "other";
+    }
+    if (t.pos !== "名詞") return "other";
+    var d = t.pos_detail_1;
+    if (d === "一般" || d === "固有名詞" || d === "サ変接続") return "stem";  // 単独で単語になれる名詞
+    if (d === "形容動詞語幹") return "weakstem";                               // 接尾辞がつくときだけ単語にする（重要性など）
+    if (d === "接尾") return SUFFIX_NO_MERGE.indexOf(s) === -1 ? "suffix" : "break";
+    return "other";   // 数・代名詞・非自立（よう・ため）・副詞可能（今後・多く）など
+  }
+
+  function extractByMorphology(text){
+    var tokens = state.tokenizer.tokenize(text);
+    var words = [];
+    var cur = null;   // 組み立て中の語 { text, ok: 単語として使えるか, kata: カタカナのみか, needStem: 接頭辞だけで次の語待ちか }
+
+    function flush(){
+      if (cur && cur.ok && cur.text.length >= 2) words.push(cur.text);   // 1文字の語は捨てる
+      cur = null;
+    }
+
+    tokens.forEach(function(t){
+      var s = t.surface_form, kind = classifyToken(t);
+
+      if (kind === "prefix"){ flush(); cur = { text: s, ok: false, kata: false, needStem: true }; return; }
+
+      if (kind === "stem" || kind === "weakstem"){
+        var strong = (kind === "stem"), kata = isKatakanaWord(s);
+        if (cur && cur.needStem){                              // 接頭辞のあとの語：新＋千歳空港
+          cur.text += s; cur.needStem = false; cur.ok = strong; cur.kata = kata; return;
+        }
+        if (cur && strong && cur.kata && kata){                // カタカナの連続：イン＋バウンド → インバウンド
+          cur.text += s; return;
+        }
+        flush();
+        cur = { text: s, ok: strong, kata: kata, needStem: false };
+        return;
+      }
+
+      if (kind === "suffix"){
+        if (cur && !cur.needStem){ cur.text += s; cur.ok = true; cur.kata = false; }   // 駐車＋場 → 駐車場
+        else { flush(); }
+        return;
+      }
+
+      flush();   // 助詞・動詞・記号・数などで語は途切れる（「的」「時」などもここで途切れる）
+    });
+    flush();
+    return words;
+  }
+
+  // ---------- 辞書（Kuromoji）の読み込み ----------
+  var tokenizerReady = null;   // 辞書の読み込みが終わったら（成功・失敗を問わず）解決するPromise
+
+  function extractModeLabel(){
+    if (state.tokenizerStatus === "ready") return "（形態素解析で抽出）";
+    if (state.tokenizerStatus === "loading") return "（辞書を読み込み中のため簡易抽出。読み込み後に自動で切り替わります）";
+    return "（辞書を読み込めなかったため簡易抽出）";
+  }
+
+  function initTokenizer(){
+    var resolveReady;
+    tokenizerReady = new Promise(function(r){ resolveReady = r; });
+
+    function failed(){
+      state.tokenizerStatus = "failed";
+      resolveReady();
+      // 集計済みの画面は簡易抽出のまま変わらないので、状態表示だけ更新する
+      if (state.aggregated){ showStatus(state.questions.length + " 件の質問を集計しました" + extractModeLabel() + "。", "ok"); }
+    }
+
+    if (typeof kuromoji === "undefined"){ failed(); return; }
+    try {
+      kuromoji.builder({ dicPath: KUROMOJI_DICT_PATH }).build(function(err, tk){
+        if (err || !tk){ failed(); return; }
+        state.tokenizer = tk;
+        state.tokenizerStatus = "ready";
+        resolveReady();
+        // すでに簡易抽出で集計済みなら、形態素解析で集計し直す
+        if (state.aggregated){ runAggregate(); }
+      });
+    } catch (e){ failed(); }
+  }
+
+  // 辞書の読み込みを待つ（最大 ms ミリ秒。間に合わなければ簡易抽出で先に進み、読み込み後に自動で切り替える）
+  function waitForTokenizer(ms){
+    return Promise.race([tokenizerReady, new Promise(function(r){ setTimeout(r, ms); })]);
+  }
+
+  // 単語を含む質問の一覧（ワードクラウドの大きさと同じ基準で数える）
+  function questionsForWord(word){
+    var idx = state.wordQuestions ? state.wordQuestions[word] : null;
+    if (!idx) return [];
+    return idx.map(function(i){ return state.questions[i]; });
   }
 
   // ---------- 集計 ----------
@@ -600,29 +721,33 @@
     var exclude = DEFAULT_STOPWORDS.slice();
     var custom = els.excludeWords.value.split(",").map(function(s){return s.trim();}).filter(Boolean);
     exclude = exclude.concat(custom);
-    var excludeSet = {};
+    var excludeSet = Object.create(null);
     exclude.forEach(function(w){ excludeSet[w] = true; });
 
     var questions = [];
-    var freq = {};
+    // 単語をキーにするので、"constructor" などの名前でも壊れないよう、プロトタイプのない入れ物を使う
+    var freq = Object.create(null);
+    var wordQuestions = Object.create(null);   // 単語 → その単語を含む質問の番号（ポップアップ・一覧の絞り込み用）
     var catCount = {};
-    var wordCatCount = {};
+    var wordCatCount = Object.create(null);
 
     state.rows.forEach(function(row){
       var q = (row[qCol] || "").toString().trim();
       if (!q) return;
       var cat = catCol ? (row[catCol] || "").toString().trim() : "";
       questions.push({ question: q, category: cat });
+      var qIndex = questions.length - 1;
 
       if (cat){ catCount[cat] = (catCount[cat] || 0) + 1; }
 
       var kws = extractKeywords(q);
-      var seen = {};
+      var seen = Object.create(null);
       kws.forEach(function(w){
         if (excludeSet[w]) return;
         if (seen[w]) return; // 同じ質問内での重複は1回に
         seen[w] = true;
         freq[w] = (freq[w] || 0) + 1;
+        (wordQuestions[w] = wordQuestions[w] || []).push(qIndex);
         if (cat){
           wordCatCount[w] = wordCatCount[w] || {};
           wordCatCount[w][cat] = (wordCatCount[w][cat] || 0) + 1;
@@ -638,9 +763,11 @@
 
     state.questions = questions;
     state.freq = freq;
+    state.wordQuestions = wordQuestions;
     state.catCount = catCount;
     state.wordCatCount = wordCatCount;
     state.categoryColorMap = categoryColorMap;
+    state.aggregated = true;
 
     renderWordCloud(freq);
     renderCategoryList(catCount);
@@ -650,7 +777,7 @@
 
     els.resultSection.style.display = "block";
     els.listSection.style.display = "block";
-    showStatus(questions.length + " 件の質問を集計しました。", "ok");
+    showStatus(questions.length + " 件の質問を集計しました" + extractModeLabel() + "。", "ok");
   }
   els.aggregateBtn.addEventListener("click", runAggregate);
 
@@ -701,13 +828,24 @@
     var maxCount = list[0][1];
     var hasCategoryColors = state.categoryColorMap && Object.keys(state.categoryColorMap).length > 0;
 
+    // 投影モード：単語の数や長さが違っても画面を使い切れるよう、文字サイズの倍率を自動で決める。
+    // 語の面積（文字サイズ² × 文字数）の合計が、キャンバス面積の約4割になる倍率を求める。
+    var fitScale = scale;
+    if (inPresentation){
+      var sumArea = 0;
+      list.forEach(function(it){ var b = 18 + (it[1] / maxCount) * 60; sumArea += b * b * it[0].length; });
+      fitScale = Math.sqrt(0.40 * cw * ch / sumArea);
+      // 一番大きな語が、画面の幅・高さの大半を占めてしまわないよう上限をかける
+      var topLen = list[0][0].length;
+      fitScale = Math.min(fitScale, (0.5 * cw) / (78 * topLen), (0.45 * ch) / 78);
+    }
+
     WordCloud(canvas, {
       list: list,
       gridSize: inPresentation ? Math.max(6, Math.round(7 * scale)) : Math.round(canvas.width / 90),
       weightFactor: function(size){
-        // 投影モードは最小サイズも大きめにして、画面を使い切る
         var base = inPresentation ? (18 + (size / maxCount) * 60) : (12 + (size / maxCount) * 46);
-        return base * scale;
+        return base * fitScale;
       },
       fontFamily: "'Zen Kaku Gothic New', sans-serif",
       shape: inPresentation ? "square" : "circle",
@@ -745,7 +883,7 @@
 
   // ---------- キーワードのポップアップ ----------
   function openKeywordPopup(word){
-    var items = (state.questions || []).filter(function(q){ return q.question.indexOf(word) !== -1; });
+    var items = questionsForWord(word);
     if (!items.length){ closeKeywordPopup(); return; }
     state.popupWord = word;
 
@@ -841,7 +979,7 @@
     var tag = "全件（" + items.length + "件）";
     if (filter){
       if (filter.type === "word"){
-        items = items.filter(function(q){ return q.question.indexOf(filter.value) !== -1; });
+        items = questionsForWord(filter.value);
         tag = "キーワード「" + filter.value + "」（" + items.length + "件）";
       } else if (filter.type === "category"){
         items = items.filter(function(q){ return q.category === filter.value; });
@@ -921,6 +1059,13 @@
     if (typeof cfg.excludeWords === "string"){ els.excludeWords.value = cfg.excludeWords; }
 
     loadFromUrl(cfg.csvUrl).then(function(){
+      // 最初の集計は、辞書の読み込みを待ってから行う（表示されたあとに単語が入れ替わらないようにするため）。
+      // 20秒待っても読み込めない場合は簡易抽出で先に表示し、読み込み完了後に自動で切り替える。
+      if (state.tokenizerStatus === "loading"){
+        showStatus("形態素解析の辞書を読み込み中です…（初回は時間がかかることがあります）", "ok");
+      }
+      return waitForTokenizer(20000);
+    }).then(function(){
       if (cfg.questionColumn && state.headers.indexOf(cfg.questionColumn) !== -1){
         els.qCol.value = cfg.questionColumn;
       }
@@ -941,6 +1086,8 @@
       }
     }).catch(function(){ /* エラー表示は loadFromUrl 内で行い済み */ });
   }
+
+  initTokenizer();   // 辞書の読み込みを開始（config.json の確認と並行して進める）
 
   fetch("config.json", { cache: "no-store" })
     .then(function(res){
