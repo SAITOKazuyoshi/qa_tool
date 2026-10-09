@@ -745,6 +745,8 @@
         }
       }
     };
+    // 一定時間たっても辞書の準備ができない場合（対応していないブラウザ・遅い回線など）は、簡易抽出のままにする
+    setTimeout(function(){ if (state.tokenizerStatus === "loading"){ failed(); } }, 60000);
     worker.postMessage({
       type: "init",
       script: absUrl("https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"),
@@ -1074,19 +1076,35 @@
     // レイアウト変更後にキャンバス幅を再計算
     setTimeout(function(){ if (state.freq) renderWordCloud(state.freq); }, 150);
   }
+  // 全画面表示（Safari の古い版は webkit 付きの名前、戻り値も Promise とは限らないため吸収する）
+  function fsElement(){ return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function enterFullscreen(){
+    try {
+      var el = document.documentElement;
+      var fn = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!fn) return;
+      var r = fn.call(el);
+      if (r && r.catch){ r.catch(function(){}); }
+    } catch (e){ /* 全画面にできなくても投影モード自体は使える */ }
+  }
+  function exitFullscreen(){
+    try {
+      var fn = document.exitFullscreen || document.webkitExitFullscreen;
+      if (!fn || !fsElement()) return;
+      var r = fn.call(document);
+      if (r && r.catch){ r.catch(function(){}); }
+    } catch (e){}
+  }
   els.presentModeBtn.addEventListener("click", function(){
     var goingOn = !presentationOn;
     setPresentation(goingOn);
-    if (goingOn){
-      var el = document.documentElement;
-      if (el.requestFullscreen){ el.requestFullscreen().catch(function(){}); }
-    } else if (document.fullscreenElement && document.exitFullscreen){
-      document.exitFullscreen().catch(function(){});
-    }
+    if (goingOn){ enterFullscreen(); } else { exitFullscreen(); }
   });
-  document.addEventListener("fullscreenchange", function(){
-    if (!document.fullscreenElement && presentationOn){ setPresentation(false); }
-  });
+  function onFullscreenChange(){
+    if (!fsElement() && presentationOn){ setPresentation(false); }
+  }
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
 
   // ---------- config.json による自動設定読み込み ----------
   // 同じフォルダに config.json を置いておくと、ページを開くだけで
@@ -1147,8 +1165,8 @@
     })
     .catch(function(){ return null; })
     .then(function(cfg){
-      // morphology:false なら辞書を読み込まず、最初から簡易抽出で動かす（回線が遅い会場向け）
-      if (cfg && (cfg.morphology === false || cfg.morphology === "false")){
+      // morphology:true のときだけ辞書を読み込む（初期設定は簡易抽出のみ）
+      if (!(cfg && (cfg.morphology === true || cfg.morphology === "true"))){
         state.tokenizerStatus = "off";
         tokenizerReady = Promise.resolve();
       } else {
