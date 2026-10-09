@@ -254,12 +254,12 @@
   .fx-hl{
     position:absolute;border-radius:14px;background:rgba(255,200,0,.5);mix-blend-mode:multiply;
     box-shadow:0 0 0 3px rgba(255,170,0,.85),0 0 22px 6px rgba(255,190,0,.65);
-    animation:fxPulse 1.4s ease-in-out 3 forwards;
+    animation:fxGlow 1.8s ease-in-out infinite alternate;      /* 次の更新まで光り続ける */
   }
-  @keyframes fxPulse{0%{opacity:0;transform:scale(.92)}20%{opacity:1;transform:scale(1.04)}55%{opacity:.4;transform:scale(1)}80%{opacity:1}100%{opacity:0}}
+  @keyframes fxGlow{0%{opacity:.45}100%{opacity:1}}
   .fx-pop{position:absolute;mix-blend-mode:multiply;transform-origin:center;animation:fxPop .9s cubic-bezier(.2,.8,.3,1.3) 1 forwards;}
   @keyframes fxPop{0%{transform:scale(1);opacity:1}35%{transform:scale(1.5)}100%{transform:scale(1);opacity:0}}
-  @media (prefers-reduced-motion:reduce){ .fx-pop{display:none;} .fx-hl{animation-iteration-count:1;} }
+  @media (prefers-reduced-motion:reduce){ .fx-pop{display:none;} .fx-hl{animation:none;} }
 
   /* ---- キーワードをクリックしたときのポップアップ ---- */
   .kw-modal{
@@ -926,7 +926,12 @@
     var scale = inPresentation ? Math.max(1, Math.min(cw / 900, ch / 460)) : 1;
 
     if (typeof WordCloud.stop === "function"){ WordCloud.stop(); }
-    var fxWords = state.fxWords; state.fxWords = null;     // 演出は1回だけ（リサイズ等の再描画では出さない）
+    // 自動更新で増えた単語：ぽんと大きくなる動きは1回だけ、光る囲みは次の更新まで残す
+    // （リサイズ・辞書の切替などの再描画では、同じ単語に光る囲みだけ付け直す）
+    var fxWords = state.fxWords, withPop = true;
+    state.fxWords = null;
+    if (fxWords){ state.glowWords = fxWords.slice(0, 12); }
+    else { fxWords = state.glowWords; withPop = false; }
     var fxToken = state.cloudToken = (state.cloudToken || 0) + 1;
     var fxLayer = getFxLayer(canvas); fxLayer.innerHTML = "";
 
@@ -958,7 +963,7 @@
     if (fxWords && fxWords.length){
       canvas.addEventListener("wordcloudstop", function(){
         if (fxToken !== state.cloudToken) return;           // 途中で描き直された場合は何もしない
-        setTimeout(function(){ playChangeEffects(canvas, fxWords, gridSz, fxToken); }, 60);
+        setTimeout(function(){ playChangeEffects(canvas, fxWords, gridSz, fxToken, withPop); }, 60);
       }, { once: true });
     }
 
@@ -1004,7 +1009,7 @@
   }
 
   // 描き終えたワードクラウド上で、指定した単語の位置を探し、光らせて大きく見せる
-  function playChangeEffects(canvas, words, gridSz, token){
+  function playChangeEffects(canvas, words, gridSz, token, withPop){
     if (token !== state.cloudToken) return;
     var want = Object.create(null), remaining = 0;
     words.slice(0, 12).forEach(function(w){ if (!want[w]){ want[w] = true; remaining++; } });
@@ -1032,6 +1037,7 @@
       var d = found[w];
       var left = d.x * kx, top = d.y * ky, width = d.w * kx, height = d.h * ky;
 
+      if (withPop){
       var pop = document.createElement("canvas");            // 単語部分の写し：ぽんと大きくなって元に戻る
       pop.width = Math.max(1, Math.round(d.w)); pop.height = Math.max(1, Math.round(d.h));
       pop.className = "fx-pop";
@@ -1039,11 +1045,11 @@
       try { pop.getContext("2d").drawImage(canvas, d.x, d.y, d.w, d.h, 0, 0, pop.width, pop.height); } catch (e){}
       pop.addEventListener("animationend", function(){ pop.remove(); });
       layer.appendChild(pop);
+      }
 
       var hl = document.createElement("div");                // 光る囲み
       hl.className = "fx-hl";
       hl.style.cssText = "left:" + (left - 6) + "px;top:" + (top - 4) + "px;width:" + (width + 12) + "px;height:" + (height + 8) + "px;";
-      hl.addEventListener("animationend", function(){ hl.remove(); });
       layer.appendChild(hl);
     });
   }
