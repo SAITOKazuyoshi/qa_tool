@@ -592,7 +592,8 @@
   // 質問文から単語を取り出す。辞書の読み込みが済んでいれば形態素解析、そうでなければ簡易抽出。
   function extractKeywords(text){
     if (!text) return [];
-    return state.tokenizer ? extractByMorphology(text) : extractBySimplePattern(text);
+    var toks = state.tokenizer ? state.tokenizer.tokenize(text) : null;   // 別スレッドで解析済みの結果（まだなら null）
+    return toks ? extractByMorphology(toks) : extractBySimplePattern(text);
   }
 
   // 簡易抽出：漢字・カタカナ・英数字の連続を単語とみなす（辞書が使えないときの代替）
@@ -626,8 +627,7 @@
     return "other";   // 数・代名詞・非自立（よう・ため）・副詞可能（今後・多く）など
   }
 
-  function extractByMorphology(text){
-    var tokens = state.tokenizer.tokenize(text);
+  function extractByMorphology(tokens){
     var words = [];
     var cur = null;   // 組み立て中の語 { text, ok: 単語として使えるか, kata: カタカナのみか, needStem: 接頭辞だけで次の語待ちか }
 
@@ -687,25 +687,69 @@
       if (state.aggregated){ showStatus(state.questions.length + " 件の質問を集計しました" + extractModeLabel() + "。", "ok"); }
     }
 
-    // 本体のスクリプトは画面を表示したあとに読み込む（読み込みが遅くても初期表示を止めないため）
-    var sc = document.createElement("script");
-    sc.src = "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js";
-    sc.async = true;
-    sc.onerror = function(){ failed(); };
-    sc.onload = function(){
-      if (typeof kuromoji === "undefined"){ failed(); return; }
-      try {
-        kuromoji.builder({ dicPath: KUROMOJI_DICT_PATH }).build(function(err, tk){
-          if (err || !tk){ failed(); return; }
-          state.tokenizer = tk;
-          state.tokenizerStatus = "ready";
-          resolveReady();
-          // すでに簡易抽出で集計済みなら、形態素解析で集計し直す
-          if (state.aggregated){ runAggregate(); }
-        });
-      } catch (e){ failed(); }
+    // 辞書の展開は重く、そのまま実行すると画面全体が固まるため、別スレッド（Web Worker）で行う。
+    // 画面側は、解析済みの結果をもらって使うだけ（解析待ちの質問は、その間だけ簡易抽出になる）。
+    var tokCache = Object.create(null);
+    var queue = [], queued = Object.create(null), flushTimer = null, rerunTimer = null, worker = null;
+
+    var workerSrc =
+      "var tk=null;" +
+      "onmessage=function(e){var m=e.data;" +
+      " if(m.type==='init'){try{importScripts(m.script);" +
+      "  kuromoji.builder({dicPath:m.dict}).build(function(err,t){" +
+      "   if(err||!t){postMessage({type:'failed'});return;} tk=t; postMessage({type:'ready'});});" +
+      " }catch(x){postMessage({type:'failed'});}}" +
+      " else if(m.type==='tokenize'&&tk){var out=m.texts.map(function(t){" +
+      "  return tk.tokenize(t).map(function(o){return {surface_form:o.surface_form,pos:o.pos,pos_detail_1:o.pos_detail_1};});});" +
+      "  postMessage({type:'tokens',texts:m.texts,result:out});}" +
+      "};";
+
+    function absUrl(u){ return new URL(u, location.href).href; }
+
+    function requestTokens(text){
+      if (queued[text]) return;
+      queued[text] = true; queue.push(text);
+      if (!flushTimer){
+        flushTimer = setTimeout(function(){
+          flushTimer = null;
+          var texts = queue; queue = [];
+          worker.postMessage({ type: "tokenize", texts: texts });
+        }, 0);
+      }
+    }
+
+    try {
+      worker = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: "text/javascript" })));
+    } catch (e){ failed(); return; }
+
+    worker.onerror = function(){ if (state.tokenizerStatus === "loading"){ failed(); } };
+    worker.onmessage = function(ev){
+      var m = ev.data;
+      if (m.type === "failed"){ failed(); return; }
+      if (m.type === "ready"){
+        state.tokenizer = { tokenize: function(text){
+          var t = tokCache[text];
+          if (!t){ requestTokens(text); return null; }
+          return t;
+        } };
+        state.tokenizerStatus = "ready";
+        resolveReady();
+        if (state.aggregated){ runAggregate(); }   // 簡易抽出で集計済みなら、解析結果で集計し直す
+        return;
+      }
+      if (m.type === "tokens"){
+        m.texts.forEach(function(t, i){ tokCache[t] = m.result[i]; });
+        if (state.aggregated){
+          clearTimeout(rerunTimer);
+          rerunTimer = setTimeout(runAggregate, 30);   // 結果がまとめて届くので、1回だけ描き直す
+        }
+      }
     };
-    document.head.appendChild(sc);
+    worker.postMessage({
+      type: "init",
+      script: absUrl("https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"),
+      dict: absUrl(KUROMOJI_DICT_PATH)
+    });
   }
 
   // 辞書の読み込みを待つ（最大 ms ミリ秒。間に合わなければ簡易抽出で先に進み、読み込み後に自動で切り替える）
