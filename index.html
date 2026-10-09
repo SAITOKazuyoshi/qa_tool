@@ -227,12 +227,39 @@
   body.presentation footer{display:none !important;}
 
   body.presentation .wrap{max-width:100%;padding:0;}
-  body.presentation #resultSection{margin:0;height:100vh;}
+  body.presentation #resultSection{margin:0;height:calc(100vh - 56px);}
   body.presentation .grid-2{display:block;height:100%;}
   body.presentation .cloud-panel{
     height:100%;border:0;border-top:6px solid var(--coral);border-radius:0;padding:12px;
   }
   body.presentation #cloudCanvas{border-radius:0;}
+
+  /* ---- 投影モード下部バー：ロゴ・セミナー名・登壇者・質問数 ---- */
+  .pres-bar{display:none;}
+  body.presentation .pres-bar{
+    display:flex;position:fixed;left:0;right:0;bottom:0;height:56px;z-index:10;
+    align-items:center;gap:14px;padding:0 24px;background:#fff;border-top:1px solid var(--line);
+  }
+  .pb-logo{width:34px;height:34px;flex-shrink:0;}
+  .pb-name{font-weight:700;font-size:20px;letter-spacing:.04em;color:var(--ink);}
+  .pb-event{font-size:18px;color:var(--ink-soft);padding-left:14px;border-left:2px solid var(--line);}
+  .pb-event:empty{display:none;}
+  .pb-count{margin-left:auto;font-size:18px;font-weight:700;color:var(--ink-soft);}
+  .event-line{font-size:13px;color:var(--ink-soft);margin-top:2px;}
+  .event-line:empty{display:none;}
+
+  /* ---- 質問が追加されたときの演出：増えた単語を光らせ、ぽんと大きく見せる ---- */
+  .cloud-panel{position:relative;}
+  .fx-layer{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:5;}
+  .fx-hl{
+    position:absolute;border-radius:14px;background:rgba(255,200,0,.5);mix-blend-mode:multiply;
+    box-shadow:0 0 0 3px rgba(255,170,0,.85),0 0 22px 6px rgba(255,190,0,.65);
+    animation:fxPulse 1.4s ease-in-out 3 forwards;
+  }
+  @keyframes fxPulse{0%{opacity:0;transform:scale(.92)}20%{opacity:1;transform:scale(1.04)}55%{opacity:.4;transform:scale(1)}80%{opacity:1}100%{opacity:0}}
+  .fx-pop{position:absolute;mix-blend-mode:multiply;transform-origin:center;animation:fxPop .9s cubic-bezier(.2,.8,.3,1.3) 1 forwards;}
+  @keyframes fxPop{0%{transform:scale(1);opacity:1}35%{transform:scale(1.5)}100%{transform:scale(1);opacity:0}}
+  @media (prefers-reduced-motion:reduce){ .fx-pop{display:none;} .fx-hl{animation-iteration-count:1;} }
 
   /* ---- キーワードをクリックしたときのポップアップ ---- */
   .kw-modal{
@@ -297,6 +324,7 @@
         <div>
           <div class="eyebrow">SEMINAR Q&A TOOL</div>
           <h1>コエミル</h1>
+          <div class="event-line" id="eventLine"></div>
         </div>
       </div>
     </div>
@@ -384,6 +412,19 @@
 
 </div>
 
+<div class="pres-bar" id="presBar">
+    <svg class="pb-logo" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="28" fill="#ffffff" stroke="#1f7a4d" stroke-width="4"/>
+      <circle cx="22" cy="26" r="8" fill="#2f9e64"/>
+      <circle cx="40" cy="20" r="10" fill="#f2a93b"/>
+      <circle cx="46" cy="38" r="7" fill="#ef6a52"/>
+      <circle cx="24" cy="42" r="6" fill="#7b6ef6"/>
+    </svg>
+    <span class="pb-name">コエミル</span>
+    <span class="pb-event" id="pbEvent"></span>
+    <span class="pb-count" id="pbCount"></span>
+</div>
+
 <div class="kw-modal" id="kwModal" role="dialog" aria-modal="true" aria-labelledby="kwTitle">
   <div class="kw-card" id="kwCard">
     <div class="kw-head">
@@ -436,7 +477,7 @@
    "mapSection","qCol","catCol","excludeWords","aggregateBtn",
    "resultSection","cloudCanvas","catList",
    "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn",
-   "kwModal","kwCard","kwTitle","kwBody","kwClose"
+   "kwModal","kwCard","kwTitle","kwBody","kwClose","pbEvent","pbCount","eventLine"
   ].forEach(function(id){ els[id] = document.getElementById(id); });
 
   function showStatus(msg, type){
@@ -571,6 +612,7 @@
         var before = state.questions.length;
         state.lastCsvText = text;
         if (!parseAndStore(text)) return;             // 読み取れないデータなら、表示は前回のまま
+        state.highlightNext = true;                   // 自動更新で増えた単語だけ演出する（最初の表示・辞書の切替では演出しない）
         runAggregate();
         var added = state.questions.length - before;
         showStatus(
@@ -815,6 +857,20 @@
     var categoryColorMap = {};
     catRank.forEach(function(c, idx){ categoryColorMap[c] = palette[idx % palette.length]; });
 
+    // 自動更新で件数が増えた単語を調べる（増えた順）
+    var prevFreq = state.freq;
+    state.fxWords = null;
+    if (state.highlightNext && prevFreq){
+      var up = [];
+      Object.keys(freq).forEach(function(w){
+        var d = freq[w] - (prevFreq[w] || 0);
+        if (d > 0) up.push([w, d]);
+      });
+      up.sort(function(a,b){ return b[1]-a[1]; });
+      state.fxWords = up.map(function(x){ return x[0]; });
+    }
+    state.highlightNext = false;
+
     state.questions = questions;
     state.freq = freq;
     state.wordQuestions = wordQuestions;
@@ -831,6 +887,7 @@
 
     els.resultSection.style.display = "block";
     els.listSection.style.display = "block";
+    els.pbCount.textContent = "質問 " + questions.length + "件";
     showStatus(questions.length + " 件の質問を集計しました" + extractModeLabel() + "。", "ok");
   }
   els.aggregateBtn.addEventListener("click", runAggregate);
@@ -869,6 +926,9 @@
     var scale = inPresentation ? Math.max(1, Math.min(cw / 900, ch / 460)) : 1;
 
     if (typeof WordCloud.stop === "function"){ WordCloud.stop(); }
+    var fxWords = state.fxWords; state.fxWords = null;     // 演出は1回だけ（リサイズ等の再描画では出さない）
+    var fxToken = state.cloudToken = (state.cloudToken || 0) + 1;
+    var fxLayer = getFxLayer(canvas); fxLayer.innerHTML = "";
 
     if (!list.length){
       var ctx = canvas.getContext("2d");
@@ -894,9 +954,18 @@
       fitScale = Math.min(fitScale, (0.5 * cw) / (78 * topLen), (0.45 * ch) / 78);
     }
 
+    var gridSz = inPresentation ? Math.max(6, Math.round(7 * scale)) : Math.round(canvas.width / 90);
+    if (fxWords && fxWords.length){
+      canvas.addEventListener("wordcloudstop", function(){
+        if (fxToken !== state.cloudToken) return;           // 途中で描き直された場合は何もしない
+        setTimeout(function(){ playChangeEffects(canvas, fxWords, gridSz, fxToken); }, 60);
+      }, { once: true });
+    }
+
     WordCloud(canvas, {
       list: list,
-      gridSize: inPresentation ? Math.max(6, Math.round(7 * scale)) : Math.round(canvas.width / 90),
+      gridSize: gridSz,
+      hover: function(item, dim){ if (state.scanning){ state.scanning(item, dim); } },
       weightFactor: function(size){
         var base = inPresentation ? (18 + (size / maxCount) * 60) : (12 + (size / maxCount) * 46);
         return base * fitScale;
@@ -921,6 +990,61 @@
         renderQuestionList({ type:"word", value:item[0] });
         openKeywordPopup(item[0]);
       }
+    });
+  }
+
+  // ---------- 追加された質問の演出 ----------
+  function getFxLayer(canvas){
+    var panel = canvas.parentElement;
+    var layer = panel.querySelector(".fx-layer");
+    if (!layer){ layer = document.createElement("div"); layer.className = "fx-layer"; panel.appendChild(layer); }
+    layer.style.left = canvas.offsetLeft + "px";
+    layer.style.top = canvas.offsetTop + "px";
+    return layer;
+  }
+
+  // 描き終えたワードクラウド上で、指定した単語の位置を探し、光らせて大きく見せる
+  function playChangeEffects(canvas, words, gridSz, token){
+    if (token !== state.cloudToken) return;
+    var want = Object.create(null), remaining = 0;
+    words.slice(0, 12).forEach(function(w){ if (!want[w]){ want[w] = true; remaining++; } });
+    var found = Object.create(null);
+    var rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var kx = rect.width / canvas.width, ky = rect.height / canvas.height;
+
+    // 描画ライブラリは「マウスが乗った位置にある単語」を教えてくれるので、全体をなぞって各単語の範囲を集める
+    state.scanning = function(item, dim){
+      if (!item || !dim) return;
+      var w = item[0];
+      if (want[w] && !found[w]){ found[w] = dim; remaining--; }
+    };
+    try {
+      for (var y = gridSz / 2; y < canvas.height && remaining > 0; y += gridSz){
+        for (var x = gridSz / 2; x < canvas.width && remaining > 0; x += gridSz){
+          canvas.dispatchEvent(new MouseEvent("mousemove", { clientX: rect.left + x * kx, clientY: rect.top + y * ky }));
+        }
+      }
+    } finally { state.scanning = null; }
+
+    var layer = getFxLayer(canvas);
+    Object.keys(found).forEach(function(w){
+      var d = found[w];
+      var left = d.x * kx, top = d.y * ky, width = d.w * kx, height = d.h * ky;
+
+      var pop = document.createElement("canvas");            // 単語部分の写し：ぽんと大きくなって元に戻る
+      pop.width = Math.max(1, Math.round(d.w)); pop.height = Math.max(1, Math.round(d.h));
+      pop.className = "fx-pop";
+      pop.style.cssText = "left:" + left + "px;top:" + top + "px;width:" + width + "px;height:" + height + "px;";
+      try { pop.getContext("2d").drawImage(canvas, d.x, d.y, d.w, d.h, 0, 0, pop.width, pop.height); } catch (e){}
+      pop.addEventListener("animationend", function(){ pop.remove(); });
+      layer.appendChild(pop);
+
+      var hl = document.createElement("div");                // 光る囲み
+      hl.className = "fx-hl";
+      hl.style.cssText = "left:" + (left - 6) + "px;top:" + (top - 4) + "px;width:" + (width + 12) + "px;height:" + (height + 8) + "px;";
+      hl.addEventListener("animationend", function(){ hl.remove(); });
+      layer.appendChild(hl);
     });
   }
 
@@ -1110,7 +1234,17 @@
   // 同じフォルダに config.json を置いておくと、ページを開くだけで
   // CSV読み込み〜列指定〜集計〜自動更新設定までを自動実行する。
   // config.json が無い場合は何もせず、通常の手動操作にフォールバックする。
+  // セミナー名・登壇者名（config.json の eventTitle / speaker）を画面と投影モードの下部バーに表示する
+  function setEventInfo(title, speaker){
+    var text = [title, speaker].filter(function(x){ return typeof x === "string" && x.trim(); })
+                               .map(function(x){ return x.trim(); }).join("　｜　");
+    els.pbEvent.textContent = text;
+    els.eventLine.textContent = text;
+    if (typeof title === "string" && title.trim()){ document.title = title.trim() + "｜コエミル"; }
+  }
+
   function applyConfig(cfg){
+    if (cfg){ setEventInfo(cfg.eventTitle, cfg.speaker); }
     // データソース固定モード：lockDataSource が true のとき、URL入力・CSVアップロードを画面から隠し、
     // config.json の csvUrl だけを使う（誤操作で別のデータに切り替わらないようにするための機能）。
     if (cfg && (cfg.lockDataSource === true || cfg.lockDataSource === "true")){
