@@ -9,7 +9,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"></script>
 <style>
   :root{
     --ink:#20261f;
@@ -688,17 +687,25 @@
       if (state.aggregated){ showStatus(state.questions.length + " 件の質問を集計しました" + extractModeLabel() + "。", "ok"); }
     }
 
-    if (typeof kuromoji === "undefined"){ failed(); return; }
-    try {
-      kuromoji.builder({ dicPath: KUROMOJI_DICT_PATH }).build(function(err, tk){
-        if (err || !tk){ failed(); return; }
-        state.tokenizer = tk;
-        state.tokenizerStatus = "ready";
-        resolveReady();
-        // すでに簡易抽出で集計済みなら、形態素解析で集計し直す
-        if (state.aggregated){ runAggregate(); }
-      });
-    } catch (e){ failed(); }
+    // 本体のスクリプトは画面を表示したあとに読み込む（読み込みが遅くても初期表示を止めないため）
+    var sc = document.createElement("script");
+    sc.src = "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js";
+    sc.async = true;
+    sc.onerror = function(){ failed(); };
+    sc.onload = function(){
+      if (typeof kuromoji === "undefined"){ failed(); return; }
+      try {
+        kuromoji.builder({ dicPath: KUROMOJI_DICT_PATH }).build(function(err, tk){
+          if (err || !tk){ failed(); return; }
+          state.tokenizer = tk;
+          state.tokenizerStatus = "ready";
+          resolveReady();
+          // すでに簡易抽出で集計済みなら、形態素解析で集計し直す
+          if (state.aggregated){ runAggregate(); }
+        });
+      } catch (e){ failed(); }
+    };
+    document.head.appendChild(sc);
   }
 
   // 辞書の読み込みを待つ（最大 ms ミリ秒。間に合わなければ簡易抽出で先に進み、読み込み後に自動で切り替える）
@@ -1062,10 +1069,7 @@
     loadFromUrl(cfg.csvUrl).then(function(){
       // 最初の集計は、辞書の読み込みを待ってから行う（表示されたあとに単語が入れ替わらないようにするため）。
       // 3秒待っても読み込めない場合は簡易抽出で先に表示し、読み込み完了後に自動で切り替える。
-      if (state.tokenizerStatus === "loading"){
-        showStatus("形態素解析の辞書を読み込み中です…（最大3秒待ち、間に合わなければ簡易抽出で先に表示します）", "ok");
-      }
-      return waitForTokenizer(3000);
+      // 辞書は待たない：簡易抽出で先に表示し、辞書の準備ができたら自動で切り替える
     }).then(function(){
       if (cfg.questionColumn && state.headers.indexOf(cfg.questionColumn) !== -1){
         els.qCol.value = cfg.questionColumn;
@@ -1104,7 +1108,8 @@
         state.tokenizerStatus = "off";
         tokenizerReady = Promise.resolve();
       } else {
-        initTokenizer();
+        // 初期表示を優先し、辞書の読み込みは少し遅らせて開始する
+        setTimeout(initTokenizer, 1500);
       }
       applyConfig(cfg);
     });
