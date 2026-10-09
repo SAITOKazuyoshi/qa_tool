@@ -672,6 +672,7 @@
 
   function extractModeLabel(){
     if (state.tokenizerStatus === "ready") return "（形態素解析で抽出）";
+    if (state.tokenizerStatus === "off") return "（簡易抽出）";
     if (state.tokenizerStatus === "loading") return "（辞書を読み込み中のため簡易抽出。読み込み後に自動で切り替わります）";
     return "（辞書を読み込めなかったため簡易抽出）";
   }
@@ -1060,11 +1061,11 @@
 
     loadFromUrl(cfg.csvUrl).then(function(){
       // 最初の集計は、辞書の読み込みを待ってから行う（表示されたあとに単語が入れ替わらないようにするため）。
-      // 20秒待っても読み込めない場合は簡易抽出で先に表示し、読み込み完了後に自動で切り替える。
+      // 3秒待っても読み込めない場合は簡易抽出で先に表示し、読み込み完了後に自動で切り替える。
       if (state.tokenizerStatus === "loading"){
-        showStatus("形態素解析の辞書を読み込み中です…（初回は時間がかかることがあります）", "ok");
+        showStatus("形態素解析の辞書を読み込み中です…（最大3秒待ち、間に合わなければ簡易抽出で先に表示します）", "ok");
       }
-      return waitForTokenizer(20000);
+      return waitForTokenizer(3000);
     }).then(function(){
       if (cfg.questionColumn && state.headers.indexOf(cfg.questionColumn) !== -1){
         els.qCol.value = cfg.questionColumn;
@@ -1087,9 +1088,7 @@
     }).catch(function(){ /* エラー表示は loadFromUrl 内で行い済み */ });
   }
 
-  initTokenizer();   // 辞書の読み込みを開始（config.json の確認と並行して進める）
-
-  fetch("config.json", { cache: "no-store" })
+    fetch("config.json", { cache: "no-store" })
     .then(function(res){
       if (!res.ok) return null;   // config.json が無い → 通常の手動モード
       return res.json().catch(function(){
@@ -1099,7 +1098,16 @@
       });
     })
     .catch(function(){ return null; })
-    .then(applyConfig);
+    .then(function(cfg){
+      // morphology:false なら辞書を読み込まず、最初から簡易抽出で動かす（回線が遅い会場向け）
+      if (cfg && (cfg.morphology === false || cfg.morphology === "false")){
+        state.tokenizerStatus = "off";
+        tokenizerReady = Promise.resolve();
+      } else {
+        initTokenizer();
+      }
+      applyConfig(cfg);
+    });
 
 })();
 </script>
