@@ -36,12 +36,44 @@
   ol{margin:6px 0 0;padding-left:1.4em;font-size:14px;}
   .warn{color:#b0402f;font-size:13px;margin-top:8px;}
   .warn:empty{display:none;}
+  select{font:inherit;font-size:15px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;}
+
+  /* ---- 紙の質問用紙（A4）：画面ではプレビューを縮小表示、印刷では用紙だけを原寸で出す ---- */
+  .paper-preview{margin-top:14px;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#f2efe3;}
+  .sheet{width:210mm;height:297mm;background:#fff;color:#20261f;display:flex;flex-direction:column;transform-origin:0 0;}
+  .card{flex:1;min-height:0;padding:11mm 14mm 9mm;display:flex;flex-direction:column;position:relative;}
+  .card + .card{border-top:.3mm dashed #9a9a9a;}
+  .card + .card::before{content:"✂ 切り取り線";position:absolute;top:-2.2mm;left:14mm;font-size:3mm;line-height:4mm;background:#fff;padding:0 2mm;color:#888;}
+  .c-head{display:flex;justify-content:space-between;align-items:flex-start;gap:6mm;border-left:2mm solid #1f7a4d;padding-left:4mm;}
+  .c-label{font-size:3.6mm;color:#1f7a4d;font-weight:700;line-height:1.4;}
+  .c-title{font-size:5.4mm;font-weight:900;line-height:1.35;margin-top:.8mm;}
+  .c-speaker{font-size:3.8mm;color:#5c6b58;font-weight:700;line-height:1.4;margin-top:.8mm;}
+  .c-speaker:empty{display:none;}
+  .c-qr{width:22mm;flex-shrink:0;text-align:center;font-size:2.5mm;line-height:1.3;color:#5c6b58;}
+  .c-qr svg{width:22mm;height:22mm;display:block;}
+  .c-qr:empty{display:none;}
+  .c-field{margin-top:6mm;display:flex;align-items:flex-end;gap:3mm;font-size:4mm;font-weight:700;}
+  .c-field .c-line{flex:1;border-bottom:.3mm solid #20261f;height:9mm;}
+  .c-field small{font-size:3mm;font-weight:500;color:#5c6b58;}
+  .c-qlabel{margin-top:5mm;font-size:4mm;font-weight:700;}
+  .c-lines{flex:1;min-height:0;margin-top:1.5mm;border:.3mm solid #b9b3a0;border-radius:2mm;padding:0 4mm;overflow:hidden;}
+  .c-lines div{height:10mm;border-bottom:.25mm solid #cfc8b2;}
+  .c-foot{margin-top:2.5mm;font-size:3.2mm;color:#5c6b58;}
+  @page{size:A4 portrait;margin:0;}
+  @media print{
+    body{background:#fff;}
+    .wrap{max-width:none;padding:0;}
+    .wrap > :not(#paperSection), #paperSection > :not(#paperPreview){display:none !important;}
+    #paperSection{border:0;padding:0;margin:0;border-radius:0;}
+    .paper-preview{height:auto !important;margin:0;border:0;border-radius:0;background:none;}
+    .sheet{transform:none !important;height:296mm;overflow:hidden;}   /* 端数で2ページ目に出ないよう少しだけ低く */
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Googleフォームの素材づくり</h1>
-  <p class="lead">質問受付用Googleフォームのヘッダー画像と、会場・Zoomで見せるQRコード案内を作ります。講演が変わったら、ここで作り直してください。</p>
+  <p class="lead">質問受付用Googleフォームのヘッダー画像、会場・Zoomで見せるQRコード案内、紙で書いてもらう質問用紙を作ります。講演が変わったら、ここで作り直してください。</p>
 
   <section>
     <h2>1. 講演の情報</h2>
@@ -72,8 +104,23 @@
     </div>
   </section>
 
+  <section id="paperSection">
+    <h2>4. 紙の質問用紙（A4で印刷）</h2>
+    <p class="note">スマホを使わない方向けの記入用紙です。回収した用紙は、スタッフがフォームに入力すると集計に入ります。フォームのURLを入れると、用紙の右上に「スマホからも送れます」のQRコードが付きます。</p>
+    <label for="paperLayout">1枚の用紙にいくつ印刷するか</label>
+    <select id="paperLayout">
+      <option value="2">A4に2枚分（切り取り線で半分に切って使う）</option>
+      <option value="1">A4に1枚分（記入欄が広い）</option>
+    </select>
+    <label for="paperNote">用紙の下に入れる案内文</label>
+    <input type="text" id="paperNote" value="ご記入後、会場の回収箱またはスタッフにお渡しください。">
+    <div class="paper-preview" id="paperPreview"><div class="sheet" id="sheet"></div></div>
+    <div class="btn-row"><button id="printPaper">質問用紙を印刷</button></div>
+    <p class="note" style="margin-top:8px">印刷画面では、用紙サイズ「A4」、倍率「100%（実際のサイズ）」を選んでください。PDFに保存したいときは、印刷先を「PDFに保存」にします。</p>
+  </section>
+
   <section>
-    <h2>4. フォームの色・フォント（テーマ）の設定値</h2>
+    <h2>5. フォームの色・フォント（テーマ）の設定値</h2>
     <p class="note">フォームの編集画面の右上にあるパレットのアイコン（テーマ）から設定します。</p>
     <table>
       <tr><th>テーマの色</th><td><span class="swatch" style="background:#1f7a4d"></span><code>#1F7A4D</code>（コエミルの濃い緑）<br>「色」の「＋」（カスタム）を押し、この値を入れてください。</td></tr>
@@ -94,6 +141,7 @@
   var FONT = "'Zen Kaku Gothic New','Hiragino Sans',sans-serif";
   var $ = function(id){ return document.getElementById(id); };
   var els = { title:$("title"), speaker:$("speaker"), formUrl:$("formUrl"), urlWarn:$("urlWarn"),
+              paperLayout:$("paperLayout"), paperNote:$("paperNote"), paperPreview:$("paperPreview"), sheet:$("sheet"), printPaper:$("printPaper"),
               header:$("header"), slide:$("slide"), dlHeader:$("dlHeader"), dlSlide:$("dlSlide"), dlQr:$("dlQr") };
 
   // 入力したフォームURLは、このブラウザにだけ覚えておく（使えない環境でも動くように try で囲む）
@@ -234,12 +282,43 @@
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
+  // 紙の質問用紙：講演情報・QRコード・記入欄を、A4に1枚分または2枚分並べる
+  function escapeHtml(t){ return String(t).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function drawPaper(){
+    var n = els.paperLayout.value === "1" ? 1 : 2;
+    var url = els.formUrl.value.trim();
+    var qrHtml = validUrl(url) ? makeQr(url).createSvgTag({ cellSize: 4, margin: 0, scalable: true }) + "スマホからも<br>送れます" : "";
+    var lines = new Array(31).join("<div></div>");            // 記入欄の罫線（入りきらない分は隠れる）
+    var card =
+      '<div class="card">' +
+        '<div class="c-head"><div>' +
+          '<div class="c-label">講演への質問用紙</div>' +
+          '<div class="c-title">' + escapeHtml(els.title.value.trim() || "講演タイトル") + '</div>' +
+          '<div class="c-speaker">' + escapeHtml(els.speaker.value.trim()) + '</div>' +
+        '</div><div class="c-qr">' + qrHtml + '</div></div>' +
+        '<div class="c-field">ご所属<small>（会社名・団体名など）</small><span class="c-line"></span></div>' +
+        '<div class="c-qlabel">ご質問</div>' +
+        '<div class="c-lines">' + lines + '</div>' +
+        '<div class="c-foot">' + escapeHtml(els.paperNote.value.trim()) + '</div>' +
+      '</div>';
+    els.sheet.innerHTML = new Array(n + 1).join(card);
+    fitPaperPreview();
+  }
+  // 画面のプレビューは枠の幅に合わせて縮小する（印刷時は原寸）
+  function fitPaperPreview(){
+    var w = els.paperPreview.clientWidth;
+    if (!w) return;
+    var scale = w / els.sheet.offsetWidth;
+    els.sheet.style.transform = "scale(" + scale + ")";
+    els.paperPreview.style.height = (els.sheet.offsetHeight * scale) + "px";
+  }
+
   function redraw(){
     var url = els.formUrl.value.trim(), ok = validUrl(url);
     els.urlWarn.textContent = (url && !ok) ? "URLは https:// から始まる形で入れてください。" :
       (/\/edit(\?|#|$)/.test(url) ? "これは編集用のURLです。回答者には開けません。「送信」→リンクのアイコンで表示されるURLを使ってください。" : "");
     els.dlSlide.disabled = els.dlQr.disabled = !ok;
-    drawHeader(); drawSlide();
+    drawHeader(); drawSlide(); drawPaper();
   }
 
   function download(canvas, name){
@@ -263,6 +342,10 @@
   });
 
   [els.title, els.speaker].forEach(function(el){ el.addEventListener("input", redraw); });
+  els.paperLayout.addEventListener("change", drawPaper);
+  els.paperNote.addEventListener("input", drawPaper);
+  els.printPaper.addEventListener("click", function(){ window.print(); });
+  window.addEventListener("resize", fitPaperPreview);
   els.formUrl.addEventListener("input", function(){ store("formUrl", els.formUrl.value.trim()); redraw(); });
   els.formUrl.value = load("formUrl");
 

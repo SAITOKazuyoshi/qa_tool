@@ -14,7 +14,7 @@
 - `index.html` … 本体（HTML・CSS・JSが1ファイル）。ビルド工程なし。
 - `config.json` … 本番設定。GitHub Pages はブラウザから書き込めないため、手動コミットで更新する。
 - `README.md` … 設置手順と config.json の項目表。機能を変えたら更新する。
-- `form-kit.html` … Googleフォーム用のヘッダー画像（1600×400）とQRコード案内スライド（1920×1080）をcanvasで作ってPNG保存するページ。config.json の eventTitle / speaker を読む。QRは qrcode-generator 1.4.4（CDN）。
+- `form-kit.html` … Googleフォーム用のヘッダー画像（1600×400）とQRコード案内スライド（1920×1080）をcanvasで作ってPNG保存するページ。紙の質問用紙（A4に1枚／2枚分）もHTML＋印刷用CSSで作る（印刷時は `#paperSection` の用紙以外を `display:none`。visibility だと隠れた部分が場所を取り4ページになった）。config.json の eventTitle / speaker を読む。QRは qrcode-generator 1.4.4（CDN）。
 - 外部ライブラリ（CDN: cdn.jsdelivr.net、バージョン固定）: PapaParse 5.4.1 / wordcloud2.js 1.2.2 / Kuromoji.js 0.1.2（辞書は約18MB）。
 
 ## config.json の項目
