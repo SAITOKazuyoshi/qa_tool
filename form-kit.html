@@ -77,7 +77,7 @@
 
   <section>
     <h2>1. 講演の情報</h2>
-    <p class="note">config.json の内容が最初から入っています。ここで変えても config.json は変わりません。</p>
+    <p class="note">config.json の内容（講演タイトル・講師・フォームのURL）が最初から入っています。ここで変えても config.json は変わりません。</p>
     <label for="title">講演タイトル（セミナー名）</label>
     <input type="text" id="title">
     <label for="speaker">講師</label>
@@ -113,7 +113,7 @@
       <option value="1">A4に1枚分（記入欄が広い）</option>
     </select>
     <label for="paperNote">用紙の下に入れる案内文</label>
-    <input type="text" id="paperNote" value="ご記入後、会場の回収箱またはスタッフにお渡しください。">
+    <input type="text" id="paperNote" value="ご記入後、会場スタッフにお渡しください。">
     <div class="paper-preview" id="paperPreview"><div class="sheet" id="sheet"></div></div>
     <div class="btn-row"><button id="printPaper">質問用紙を印刷</button></div>
     <p class="note" style="margin-top:8px">印刷画面では、用紙サイズ「A4」、倍率「100%（実際のサイズ）」を選んでください。PDFに保存したいときは、印刷先を「PDFに保存」にします。</p>
@@ -359,6 +359,8 @@
       if (!cfg) return;
       if (typeof cfg.eventTitle === "string") els.title.value = cfg.eventTitle.trim();
       if (typeof cfg.speaker === "string") els.speaker.value = cfg.speaker.trim();
+      // config.json に formUrl があればそれを優先する（無ければ、このブラウザで前回入れたURLのまま）
+      if (typeof cfg.formUrl === "string" && cfg.formUrl.trim()) els.formUrl.value = cfg.formUrl.trim();
     })
     .catch(function(){});
   redraw();
