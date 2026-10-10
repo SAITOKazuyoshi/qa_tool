@@ -228,7 +228,9 @@
   body.presentation footer{display:none !important;}
 
   body.presentation .wrap{max-width:100%;padding:0;}
-  body.presentation #resultSection{margin:62px 0 0;height:calc(100vh - 62px);}
+  /* 上部バーの文字の大きさは画面幅に合わせて変える（会場のプロジェクタでも読める大きさに）。バーの高さもそれに連動 */
+  body.presentation{--pb-fs:clamp(22px,2.7vw,56px);--pb-h:calc(var(--pb-fs) * 3 + 7px);}
+  body.presentation #resultSection{margin:var(--pb-h) 0 0;height:calc(100vh - var(--pb-h));}
   body.presentation .grid-2{display:block;height:100%;}
   body.presentation .cloud-panel{
     height:100%;border:0;border-radius:0;padding:12px;
@@ -238,14 +240,14 @@
   /* ---- 投影モード上部バー：セミナー名・登壇者・質問数 ---- */
   .pres-bar{display:none;}
   body.presentation .pres-bar{
-    display:flex;position:fixed;left:0;right:0;top:0;height:62px;z-index:10;
-    align-items:center;gap:14px;padding:0 24px;background:#fff;
+    display:flex;position:fixed;left:0;right:0;top:0;height:var(--pb-h);z-index:10;
+    align-items:center;gap:1em;padding:0 1em;font-size:var(--pb-fs);background:#fff;
     border-top:6px solid var(--coral);border-bottom:1px solid var(--line);
   }
-  .pb-event{font-size:18px;font-weight:700;line-height:1.25;color:var(--ink);min-width:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;}  /* 長いときは2行まで折り返す */
+  .pb-event{font-size:1em;font-weight:700;line-height:1.3;color:var(--ink);min-width:0;}
   .pb-event:empty{display:none;}
-  .pb-part{display:inline-block;}
-  .pb-count{margin-left:auto;flex-shrink:0;font-size:18px;font-weight:700;color:var(--ink-soft);}
+  .pb-part{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}  /* 1行目：講演タイトル、2行目：講師 */
+  .pb-count{margin-left:auto;flex-shrink:0;font-size:.8em;font-weight:700;color:var(--ink-soft);}
   .event-line{font-size:13px;color:var(--ink-soft);margin-top:2px;}
   .event-line:empty{display:none;}
 
@@ -464,6 +466,7 @@
     refreshFailed: false, // 直前の自動更新が通信エラーだったか
     sourceLocked: false,  // config.json の lockDataSource が true（画面からデータソースを変更できない）
     lastCsvText: null,   // 前回取得したCSVの中身（自動更新で変化を検知するために使う）
+    seenQuestions: null, // これまでに表示した質問（行の内容）の記録。新着演出の判定に使う
     dataMode: null       // "url" または "file"
   };
 
@@ -821,6 +824,11 @@
     var wordQuestions = Object.create(null);   // 単語 → その単語を含む質問の番号（ポップアップ・一覧の絞り込み用）
     var catCount = {};
     var wordCatCount = Object.create(null);
+    // 新着演出は「これまで一度も表示していない質問」に含まれる単語だけにする。
+    // Googleの公開CSVは更新直後に新旧のデータを交互に返すことがあり、件数の増減だけで判定すると同じ質問が何度も光るため。
+    var highlight = state.highlightNext && !!state.seenQuestions;
+    var seenQuestions = state.seenQuestions || Object.create(null);
+    var newWordCount = Object.create(null);
 
     state.rows.forEach(function(row){
       var q = (row[qCol] || "").toString().trim();
@@ -831,6 +839,10 @@
 
       if (cat){ catCount[cat] = (catCount[cat] || 0) + 1; }
 
+      var rowKey = JSON.stringify(row);
+      var isNew = highlight && !seenQuestions[rowKey];
+      seenQuestions[rowKey] = true;
+
       var kws = extractKeywords(q);
       var seen = Object.create(null);
       kws.forEach(function(w){
@@ -838,6 +850,7 @@
         if (seen[w]) return; // 同じ質問内での重複は1回に
         seen[w] = true;
         freq[w] = (freq[w] || 0) + 1;
+        if (isNew){ newWordCount[w] = (newWordCount[w] || 0) + 1; }
         (wordQuestions[w] = wordQuestions[w] || []).push(qIndex);
         if (cat){
           wordCatCount[w] = wordCatCount[w] || {};
@@ -852,17 +865,11 @@
     var categoryColorMap = {};
     catRank.forEach(function(c, idx){ categoryColorMap[c] = palette[idx % palette.length]; });
 
-    // 自動更新で件数が増えた単語を調べる（増えた順）
-    var prevFreq = state.freq;
+    // 自動更新で初めて出てきた質問に含まれる単語（多い順）
+    state.seenQuestions = seenQuestions;
     state.fxWords = null;
-    if (state.highlightNext && prevFreq){
-      var up = [];
-      Object.keys(freq).forEach(function(w){
-        var d = freq[w] - (prevFreq[w] || 0);
-        if (d > 0) up.push([w, d]);
-      });
-      up.sort(function(a,b){ return b[1]-a[1]; });
-      state.fxWords = up.map(function(x){ return x[0]; });
+    if (highlight){
+      state.fxWords = Object.keys(newWordCount).sort(function(a,b){ return newWordCount[b]-newWordCount[a]; });
     }
     state.highlightNext = false;
 
@@ -1240,12 +1247,12 @@
     var parts = [title, speaker].filter(function(x){ return typeof x === "string" && x.trim(); })
                                 .map(function(x){ return x.trim(); });
     var text = parts.join("　｜　");
-    // 上部バーは講演タイトルと講師を別々のかたまりにして、入りきらないときは講師ごと2行目へ送る（名前の途中で改行しない）
+    // 上部バーは講演タイトルを1行目、講師を2行目に分けて大きく表示する
     els.pbEvent.textContent = "";
-    parts.forEach(function(x, i){
+    parts.forEach(function(x){
       var span = document.createElement("span");
       span.className = "pb-part";
-      span.textContent = x + (i < parts.length - 1 ? "　｜　" : "");
+      span.textContent = x;
       els.pbEvent.appendChild(span);
     });
     els.eventLine.textContent = text;
