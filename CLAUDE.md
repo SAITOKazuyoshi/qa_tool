@@ -19,7 +19,7 @@
 ## config.json の項目
 `csvUrl`（`/pub?...output=csv` 形式。`/pubhtml` は不可）/ `lockDataSource`（画面のURL入力を隠す）/
 `questionColumn` / `categoryColumn`（現在は「所属」）/ `excludeWords` / `autoRefresh` /
-`refreshIntervalMs`（30000・60000・300000のみ）/ `eventTitle` / `speaker` /
+`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` /
 `morphology`（`true` のときだけ形態素解析を使う。初期は無効＝簡易抽出）
 
 ## 主な機能と実装の要点
