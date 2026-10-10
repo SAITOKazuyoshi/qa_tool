@@ -234,17 +234,16 @@
   }
   body.presentation #cloudCanvas{border-radius:0;}
 
-  /* ---- 投影モード下部バー：ロゴ・セミナー名・登壇者・質問数 ---- */
+  /* ---- 投影モード下部バー：セミナー名・登壇者・質問数 ---- */
   .pres-bar{display:none;}
   body.presentation .pres-bar{
     display:flex;position:fixed;left:0;right:0;bottom:0;height:56px;z-index:10;
     align-items:center;gap:14px;padding:0 24px;background:#fff;border-top:1px solid var(--line);
   }
-  .pb-logo{width:34px;height:34px;flex-shrink:0;}
-  .pb-name{font-weight:700;font-size:20px;letter-spacing:.04em;color:var(--ink);}
-  .pb-event{font-size:18px;color:var(--ink-soft);padding-left:14px;border-left:2px solid var(--line);}
+  .pb-event{font-size:18px;font-weight:700;line-height:1.25;color:var(--ink);min-width:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;}  /* 長いときは2行まで折り返す */
   .pb-event:empty{display:none;}
-  .pb-count{margin-left:auto;font-size:18px;font-weight:700;color:var(--ink-soft);}
+  .pb-part{display:inline-block;}
+  .pb-count{margin-left:auto;flex-shrink:0;font-size:18px;font-weight:700;color:var(--ink-soft);}
   .event-line{font-size:13px;color:var(--ink-soft);margin-top:2px;}
   .event-line:empty{display:none;}
 
@@ -413,14 +412,6 @@
 </div>
 
 <div class="pres-bar" id="presBar">
-    <svg class="pb-logo" viewBox="0 0 64 64" aria-hidden="true">
-      <circle cx="32" cy="32" r="28" fill="#ffffff" stroke="#1f7a4d" stroke-width="4"/>
-      <circle cx="22" cy="26" r="8" fill="#2f9e64"/>
-      <circle cx="40" cy="20" r="10" fill="#f2a93b"/>
-      <circle cx="46" cy="38" r="7" fill="#ef6a52"/>
-      <circle cx="24" cy="42" r="6" fill="#7b6ef6"/>
-    </svg>
-    <span class="pb-name">コエミル</span>
     <span class="pb-event" id="pbEvent"></span>
     <span class="pb-count" id="pbCount"></span>
 </div>
@@ -1242,9 +1233,17 @@
   // config.json が無い場合は何もせず、通常の手動操作にフォールバックする。
   // セミナー名・登壇者名（config.json の eventTitle / speaker）を画面と投影モードの下部バーに表示する
   function setEventInfo(title, speaker){
-    var text = [title, speaker].filter(function(x){ return typeof x === "string" && x.trim(); })
-                               .map(function(x){ return x.trim(); }).join("　｜　");
-    els.pbEvent.textContent = text;
+    var parts = [title, speaker].filter(function(x){ return typeof x === "string" && x.trim(); })
+                                .map(function(x){ return x.trim(); });
+    var text = parts.join("　｜　");
+    // 下部バーは講演タイトルと講師を別々のかたまりにして、入りきらないときは講師ごと2行目へ送る（名前の途中で改行しない）
+    els.pbEvent.textContent = "";
+    parts.forEach(function(x, i){
+      var span = document.createElement("span");
+      span.className = "pb-part";
+      span.textContent = x + (i < parts.length - 1 ? "　｜　" : "");
+      els.pbEvent.appendChild(span);
+    });
     els.eventLine.textContent = text;
     if (typeof title === "string" && title.trim()){ document.title = title.trim() + "｜コエミル"; }
   }
