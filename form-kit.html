@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>フォーム素材づくり｜コエミル</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+  :root{
+    --ink:#20261f; --ink-soft:#5c6b58; --paper:#fffdf6; --line:#eae6d6;
+    --green:#2f9e64; --green-deep:#1f7a4d; --gold:#f2a93b; --coral:#ef6a52; --violet:#7b6ef6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Zen Kaku Gothic New','Hiragino Sans',sans-serif;line-height:1.7;}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 16px 64px;}
+  h1{font-size:24px;margin:0 0 4px;}
+  .lead{color:var(--ink-soft);margin:0 0 28px;font-size:14px;}
+  section{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:24px;}
+  h2{font-size:18px;margin:0 0 4px;}
+  .note{color:var(--ink-soft);font-size:13px;margin:0 0 14px;}
+  label{display:block;font-size:12.5px;color:var(--ink-soft);margin:12px 0 4px;}
+  input[type=text],input[type=url]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:15px;}
+  canvas{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;margin-top:14px;background:#fff;}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  button{font:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:8px;border:0;background:var(--green-deep);color:#fff;cursor:pointer;}
+  button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);}
+  button:disabled{opacity:.4;cursor:default;}
+  table{border-collapse:collapse;width:100%;font-size:14px;}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{width:34%;color:var(--ink-soft);font-weight:500;}
+  .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:6px;border:1px solid rgba(0,0,0,.1);}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:#f5f2e6;padding:1px 6px;border-radius:4px;}
+  ol{margin:6px 0 0;padding-left:1.4em;font-size:14px;}
+  .warn{color:#b0402f;font-size:13px;margin-top:8px;}
+  .warn:empty{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Googleフォームの素材づくり</h1>
+  <p class="lead">質問受付用Googleフォームのヘッダー画像と、会場・Zoomで見せるQRコード案内を作ります。講演が変わったら、ここで作り直してください。</p>
+
+  <section>
+    <h2>1. 講演の情報</h2>
+    <p class="note">config.json の内容が最初から入っています。ここで変えても config.json は変わりません。</p>
+    <label for="title">講演タイトル（セミナー名）</label>
+    <input type="text" id="title">
+    <label for="speaker">講師</label>
+    <input type="text" id="speaker">
+    <label for="formUrl">GoogleフォームのURL（QRコード用。フォームの「送信」→リンクのアイコンで表示されるURL）</label>
+    <input type="url" id="formUrl" placeholder="https://forms.gle/...">
+    <p class="warn" id="urlWarn"></p>
+  </section>
+
+  <section>
+    <h2>2. ヘッダー画像（1600×400）</h2>
+    <p class="note">フォームの編集画面で、右上のパレット（テーマ）→「ヘッダー」→「画像を選択」→「アップロード」で、保存した画像を選んでください。</p>
+    <canvas id="header" width="1600" height="400"></canvas>
+    <div class="btn-row"><button id="dlHeader">ヘッダー画像を保存（PNG）</button></div>
+  </section>
+
+  <section>
+    <h2>3. QRコード案内（スライド 1920×1080）</h2>
+    <p class="note">開演前や休憩中に会場のスクリーンへ映したり、Zoomで画面共有したりして使います。Zoomのチャットには、フォームのURLもあわせて貼ってください。</p>
+    <canvas id="slide" width="1920" height="1080"></canvas>
+    <div class="btn-row">
+      <button id="dlSlide" disabled>案内スライドを保存（PNG）</button>
+      <button id="dlQr" class="ghost" disabled>QRコードだけを保存（PNG・印刷用）</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. フォームの色・フォント（テーマ）の設定値</h2>
+    <p class="note">フォームの編集画面の右上にあるパレットのアイコン（テーマ）から設定します。</p>
+    <table>
+      <tr><th>テーマの色</th><td><span class="swatch" style="background:#1f7a4d"></span><code>#1F7A4D</code>（コエミルの濃い緑）<br>「色」の「＋」（カスタム）を押し、この値を入れてください。</td></tr>
+      <tr><th>背景色</th><td>いちばん薄い色（白に近いもの）。質問文が読みやすくなります。</td></tr>
+      <tr><th>ヘッダーのフォント</th><td>大きさは最大（24）がおすすめです。</td></tr>
+      <tr><th>質問のフォント</th><td>大きさ 14 前後。</td></tr>
+      <tr><th>テキストのフォント</th><td>大きさ 12 前後。</td></tr>
+    </table>
+    <p class="note" style="margin-top:12px">フォントの種類を選べるのは英数字だけです。日本語は、見る人のスマホやパソコンの標準の文字で表示されます。そのため、種類は初期設定のままで問題ありません。</p>
+  </section>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var C = { ink:"#20261f", soft:"#5c6b58", paper:"#fffdf6", line:"#eae6d6",
+            green:"#2f9e64", deep:"#1f7a4d", gold:"#f2a93b", coral:"#ef6a52", violet:"#7b6ef6" };
+  var FONT = "'Zen Kaku Gothic New','Hiragino Sans',sans-serif";
+  var $ = function(id){ return document.getElementById(id); };
+  var els = { title:$("title"), speaker:$("speaker"), formUrl:$("formUrl"), urlWarn:$("urlWarn"),
+              header:$("header"), slide:$("slide"), dlHeader:$("dlHeader"), dlSlide:$("dlSlide"), dlQr:$("dlQr") };
+
+  // 入力したフォームURLは、このブラウザにだけ覚えておく（使えない環境でも動くように try で囲む）
+  function store(k, v){ try { localStorage.setItem("koemiru-formkit-" + k, v); } catch (e){} }
+  function load(k){ try { return localStorage.getItem("koemiru-formkit-" + k) || ""; } catch (e){ return ""; } }
+
+  // コエミルのマーク（丸4つ）
+  function drawMark(ctx, x, y, size){
+    var s = size / 64;
+    function circle(cx, cy, r, fill, stroke, sw){
+      ctx.beginPath(); ctx.arc(x + cx * s, y + cy * s, r * s, 0, Math.PI * 2);
+      if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+      if (stroke){ ctx.lineWidth = sw * s; ctx.strokeStyle = stroke; ctx.stroke(); }
+    }
+    circle(32, 32, 28, "#ffffff", C.deep, 4);
+    circle(22, 26, 8, C.green); circle(40, 20, 10, C.gold); circle(46, 38, 7, C.coral); circle(24, 42, 6, C.violet);
+  }
+
+  // 幅に収まるよう文字を小さくし、それでも入らなければ2行に分けて描く。描いた高さを返す
+  function fitText(ctx, text, x, y, maxW, maxSize, minSize, weight, color, lineH){
+    ctx.fillStyle = color; ctx.textBaseline = "top";
+    var size = maxSize;
+    for (; size > minSize; size -= 2){
+      ctx.font = weight + " " + size + "px " + FONT;
+      if (ctx.measureText(text).width <= maxW) break;
+    }
+    ctx.font = weight + " " + size + "px " + FONT;
+    if (ctx.measureText(text).width <= maxW){ ctx.fillText(text, x, y); return size * lineH; }
+    // 2行に分ける：全角スペースや括弧の手前など、切りやすい位置を優先する
+    var lines = splitTwo(ctx, text, maxW);
+    lines.forEach(function(l, i){ ctx.fillText(l, x, y + i * size * lineH); });
+    return size * lineH * lines.length;
+  }
+  function splitTwo(ctx, text, maxW){
+    var best = -1;
+    for (var i = 1; i < text.length; i++){
+      if (ctx.measureText(text.slice(0, i)).width > maxW) break;
+      if (/[　 （(・｜]/.test(text[i]) || /[　 ）)、。]/.test(text[i - 1])) best = i;
+    }
+    if (best < 0){ best = 1; while (best < text.length && ctx.measureText(text.slice(0, best + 1)).width <= maxW) best++; }
+    var a = text.slice(0, best).trim(), b = text.slice(best).trim();
+    // 2行目も入りきらないときは末尾を「…」にする
+    if (ctx.measureText(b).width > maxW){
+      while (b.length > 1 && ctx.measureText(b + "…").width > maxW) b = b.slice(0, -1);
+      b += "…";
+    }
+    return [a, b];
+  }
+
+  // 背景の飾り：ワードクラウドを思わせる色の丸
+  function drawDots(ctx, dots){
+    dots.forEach(function(d){
+      ctx.globalAlpha = d[4] || 1;
+      ctx.beginPath(); ctx.arc(d[0], d[1], d[2], 0, Math.PI * 2); ctx.fillStyle = d[3]; ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHeader(){
+    var cv = els.header, ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.paper; ctx.fillRect(0, 0, W, H);
+    drawDots(ctx, [
+      [1440, 90, 120, C.gold, .9], [1555, 300, 95, C.coral, .9], [1330, 330, 62, C.green, .9],
+      [1250, 120, 34, C.violet, .85], [1560, 70, 30, C.green, .8], [1180, 300, 18, C.gold, .9]
+    ]);
+    ctx.fillStyle = C.deep; ctx.fillRect(0, 0, 18, H);               // 左端の帯
+
+    var x = 90, maxW = 1040;
+    drawMark(ctx, x, 62, 52);
+    ctx.font = "700 30px " + FONT; ctx.fillStyle = C.deep; ctx.textBaseline = "middle";
+    ctx.fillText("講演への質問を受け付けています", x + 70, 89);
+
+    var title = els.title.value.trim() || "講演タイトル";
+    var speaker = els.speaker.value.trim();
+    var y = 148;
+    y += fitText(ctx, title, x, y, maxW, 64, 40, "900", C.ink, 1.25) + 14;
+    if (speaker){ fitText(ctx, speaker, x, y, maxW, 38, 26, "700", C.soft, 1.3); }
+  }
+
+  function makeQr(url){
+    var qr = qrcode(0, "M"); qr.addData(url, "Byte"); qr.make(); return qr;
+  }
+  function drawQr(ctx, qr, x, y, size){
+    var n = qr.getModuleCount(), cell = size / n;
+    ctx.fillStyle = "#000";
+    for (var r = 0; r < n; r++) for (var c = 0; c < n; c++){
+      if (qr.isDark(r, c)) ctx.fillRect(Math.floor(x + c * cell), Math.floor(y + r * cell), Math.ceil(cell), Math.ceil(cell));
+    }
+  }
+  function validUrl(u){ return /^https?:\/\/\S+$/.test(u); }
+
+  function drawSlide(){
+    var cv = els.slide, ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.paper; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = C.coral; ctx.fillRect(0, 0, W, 14);
+    drawDots(ctx, [[120, 980, 70, C.gold, .9], [250, 1040, 40, C.green, .9], [40, 860, 26, C.violet, .85]]);
+
+    var url = els.formUrl.value.trim();
+    var ok = validUrl(url);
+    // 右側：QRコード（白いカードの上）
+    var qx = 1110, qy = 150, qs = 680, pad = 50;
+    ctx.fillStyle = "#fff"; ctx.strokeStyle = C.line; ctx.lineWidth = 3;
+    roundRect(ctx, qx - pad, qy - pad, qs + pad * 2, qs + pad * 2, 36); ctx.fill(); ctx.stroke();
+    if (ok){ drawQr(ctx, makeQr(url), qx, qy, qs); }
+    else {
+      ctx.fillStyle = "#f2efe3"; ctx.fillRect(qx, qy, qs, qs);
+      ctx.fillStyle = C.soft; ctx.font = "700 36px " + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("フォームのURLを入れると", qx + qs / 2, qy + qs / 2 - 26);
+      ctx.fillText("QRコードが表示されます", qx + qs / 2, qy + qs / 2 + 26);
+      ctx.textAlign = "left";
+    }
+
+    // 左側：案内文
+    var x = 110, maxW = 860;
+    drawMark(ctx, x, 110, 76);
+    ctx.font = "700 40px " + FONT; ctx.fillStyle = C.deep; ctx.textBaseline = "middle";
+    ctx.fillText("質問はこちらから", x + 100, 148);
+
+    var y = 240;
+    ctx.font = "900 92px " + FONT; ctx.fillStyle = C.ink; ctx.textBaseline = "top";
+    ctx.fillText("スマホで", x, y); y += 112;
+    ctx.fillText("読み取って", x, y); y += 112;
+    ctx.fillText("質問を送信", x, y); y += 150;
+
+    ctx.font = "500 36px " + FONT; ctx.fillStyle = C.ink;
+    ["① カメラでQRコードを読み取る", "② 所属と質問を入力して送信"].forEach(function(t){ ctx.fillText(t, x, y); y += 58; });
+
+    // 下：講演名・講師
+    var title = els.title.value.trim(), speaker = els.speaker.value.trim();
+    var by = 920;
+    if (title){ by += fitText(ctx, title, 420, by, 1400, 38, 28, "700", C.ink, 1.3); }
+    if (speaker){ fitText(ctx, speaker, 420, by + 4, 1400, 32, 24, "500", C.soft, 1.3); }
+  }
+  function roundRect(ctx, x, y, w, h, r){
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  function redraw(){
+    var url = els.formUrl.value.trim(), ok = validUrl(url);
+    els.urlWarn.textContent = (url && !ok) ? "URLは https:// から始まる形で入れてください。" :
+      (/\/edit(\?|#|$)/.test(url) ? "これは編集用のURLです。回答者には開けません。「送信」→リンクのアイコンで表示されるURLを使ってください。" : "");
+    els.dlSlide.disabled = els.dlQr.disabled = !ok;
+    drawHeader(); drawSlide();
+  }
+
+  function download(canvas, name){
+    canvas.toBlob(function(blob){
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    }, "image/png");
+  }
+
+  els.dlHeader.addEventListener("click", function(){ download(els.header, "form-header.png"); });
+  els.dlSlide.addEventListener("click", function(){ download(els.slide, "form-qr-slide.png"); });
+  els.dlQr.addEventListener("click", function(){
+    var url = els.formUrl.value.trim(); if (!validUrl(url)) return;
+    var qr = makeQr(url), size = 1000, margin = 80;
+    var cv = document.createElement("canvas"); cv.width = cv.height = size + margin * 2;
+    var ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+    drawQr(ctx, qr, margin, margin, size);
+    download(cv, "form-qr.png");
+  });
+
+  [els.title, els.speaker].forEach(function(el){ el.addEventListener("input", redraw); });
+  els.formUrl.addEventListener("input", function(){ store("formUrl", els.formUrl.value.trim()); redraw(); });
+  els.formUrl.value = load("formUrl");
+
+  // 文字の形が整ってから描く（フォントの読み込み前に描くと別の書体になるため）
+  var fontsReady = (document.fonts && document.fonts.load)
+    ? Promise.all(["900 64px", "700 30px", "500 36px"].map(function(f){ return document.fonts.load(f + " 'Zen Kaku Gothic New'", "質問"); })).catch(function(){})
+    : Promise.resolve();
+  var cfgReady = fetch("config.json", { cache: "no-store" })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(cfg){
+      if (!cfg) return;
+      if (typeof cfg.eventTitle === "string") els.title.value = cfg.eventTitle.trim();
+      if (typeof cfg.speaker === "string") els.speaker.value = cfg.speaker.trim();
+    })
+    .catch(function(){});
+  redraw();
+  Promise.all([fontsReady, cfgReady]).then(redraw);
+})();
+</script>
+</body>
+</html>
