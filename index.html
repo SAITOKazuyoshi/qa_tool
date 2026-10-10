@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
   :root{
     --ink:#20261f;
@@ -305,9 +306,35 @@
   body.presentation .kw-title{font-size:clamp(26px,2.6vw,48px);}
   body.presentation .kw-title .kw-count{font-size:clamp(15px,1.4vw,26px);}
   body.presentation .kw-item .qmeta{display:none;}
+
+  /* ---- 投影モードで質問がまだ無いとき：QRコード付きの案内を表示 ---- */
+  .empty-guide{display:none;}
+  body.presentation.no-questions .empty-guide{
+    display:flex;position:fixed;left:0;right:0;top:var(--pb-h);bottom:0;z-index:9;
+    align-items:center;justify-content:center;gap:6vw;padding:4vh 6vw;background:var(--paper);
+  }
+  .eg-text{min-width:0;}
+  .eg-label{display:flex;align-items:center;gap:.6em;font-size:clamp(18px,2.2vw,44px);font-weight:700;color:var(--green-deep);}
+  .eg-label svg{width:1.8em;height:1.8em;flex-shrink:0;}
+  .eg-main{font-size:clamp(36px,5.6vw,120px);font-weight:900;line-height:1.22;margin:.35em 0 .45em;color:var(--ink);}
+  .eg-steps{font-size:clamp(16px,2vw,40px);font-weight:500;line-height:1.7;color:var(--ink);}
+  .eg-qr{flex-shrink:0;background:#fff;border:3px solid var(--line);border-radius:2.4vw;padding:2.4vw;}
+  .eg-qr svg{display:block;width:min(34vw,58vh);height:min(34vw,58vh);}
+  .eg-qr:empty{display:none;}
+
+  /* ---- 公開期間外（config.json の enabled / availableFrom / availableUntil）---- */
+  .closed-notice{display:none;}
+  body.closed .closed-notice{
+    display:flex;position:fixed;inset:0;z-index:3000;align-items:center;justify-content:center;
+    background:var(--paper);padding:24px;text-align:center;
+  }
+  body.closed .wrap, body.closed .mode-bar, body.closed .pres-bar, body.closed .empty-guide, body.closed .kw-modal{display:none !important;}
+  .closed-notice svg{width:64px;height:64px;}
+  .closed-notice h1{font-size:24px;margin:16px 0 8px;}
+  .closed-notice p{color:var(--ink-soft);margin:0;font-size:15px;}
 </style>
 </head>
-<body>
+<body class="no-questions">
 <div class="mode-bar">
   <button id="presentModeBtn" class="ghost mode-btn" type="button">投影モードで表示</button>
 </div>
@@ -421,6 +448,33 @@
     <span class="pb-count" id="pbCount"></span>
 </div>
 
+<div class="empty-guide" id="emptyGuide">
+  <div class="eg-text">
+    <div class="eg-label">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="28" fill="#ffffff" stroke="#1f7a4d" stroke-width="4"/>
+        <circle cx="22" cy="26" r="8" fill="#2f9e64"/><circle cx="40" cy="20" r="10" fill="#f2a93b"/>
+        <circle cx="46" cy="38" r="7" fill="#ef6a52"/><circle cx="24" cy="42" r="6" fill="#7b6ef6"/>
+      </svg>質問はこちらから
+    </div>
+    <div class="eg-main">スマホで<br>読み取って<br>質問を送信</div>
+    <div class="eg-steps" id="egSteps">① カメラでQRコードを読み取る<br>② 質問を入力して送信</div>
+  </div>
+  <div class="eg-qr" id="egQr"></div>
+</div>
+
+<div class="closed-notice" id="closedNotice">
+  <div>
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="28" fill="#ffffff" stroke="#1f7a4d" stroke-width="4"/>
+      <circle cx="22" cy="26" r="8" fill="#2f9e64"/><circle cx="40" cy="20" r="10" fill="#f2a93b"/>
+      <circle cx="46" cy="38" r="7" fill="#ef6a52"/><circle cx="24" cy="42" r="6" fill="#7b6ef6"/>
+    </svg>
+    <h1 id="closedTitle">現在、このページは公開していません</h1>
+    <p id="closedText"></p>
+  </div>
+</div>
+
 <div class="kw-modal" id="kwModal" role="dialog" aria-modal="true" aria-labelledby="kwTitle">
   <div class="kw-card" id="kwCard">
     <div class="kw-head">
@@ -462,6 +516,7 @@
     questions: [],      // {question, category}
     refreshTimer: null,
     refreshing: false,   // 自動更新の通信中フラグ（重複実行を防ぐ）
+    closed: false,       // 公開期間外（config.json の enabled / availableFrom / availableUntil）
     refreshFailed: false, // 直前の自動更新が通信エラーだったか
     sourceLocked: false,  // config.json の lockDataSource が true（画面からデータソースを変更できない）
     lastCsvText: null,   // 前回取得したCSVの中身（自動更新で変化を検知するために使う）
@@ -488,11 +543,13 @@
   // ---------- CSV 読み込み ----------
   function parseAndStore(csvText){
     var parsed = Papa.parse(csvText, { header:true, skipEmptyLines:true });
-    if (!parsed.data || !parsed.data.length){
+    // 回答が0件でも見出し行があれば読み込み成功とする（当日の開始直後は見出しだけのCSVになるため）
+    var fields = (parsed.meta && parsed.meta.fields || []).filter(function(f){ return f && f.trim(); });
+    if (!parsed.data || (!parsed.data.length && !fields.length)){
       showStatus("データが読み取れませんでした。CSVの内容を確認してください。", "error");
       return false;
     }
-    state.headers = parsed.meta.fields || Object.keys(parsed.data[0]);
+    state.headers = fields.length ? parsed.meta.fields : Object.keys(parsed.data[0]);
     state.rows = parsed.data;
     populateColumnSelectors();
     els.mapSection.style.display = "block";
@@ -590,7 +647,7 @@
   // 追加だけでなく、修正・削除があった場合も反映する。
   function refreshIfChanged(){
     var url = els.csvUrl.value.trim();
-    if (!url || state.refreshing) return;
+    if (!url || state.refreshing || state.closed) return;
     state.refreshing = true;
     fetch(url, { cache: "no-store" })
       .then(function(res){
@@ -889,6 +946,7 @@
     els.resultSection.style.display = "block";
     els.listSection.style.display = "block";
     els.pbCount.textContent = "質問 " + questions.length + "件";
+    document.body.classList.toggle("no-questions", questions.length === 0);   // 0件のときは投影モードでQR案内を出す
     showStatus(questions.length + " 件の質問を集計しました" + extractModeLabel() + "。", "ok");
   }
   els.aggregateBtn.addEventListener("click", runAggregate);
@@ -1252,8 +1310,72 @@
     if (typeof title === "string" && title.trim()){ document.title = title.trim() + "｜コエミル"; }
   }
 
+  // ---------- 公開期間（config.json の enabled / availableFrom / availableUntil）----------
+  // 日付だけ（2026-11-20）なら、開始はその日の0時、終了はその日の23時59分59秒として扱う。時刻は見る人のパソコンの時刻。
+  function parseConfigDate(v, endOfDay){
+    if (typeof v !== "string" || !v.trim()) return null;
+    var t = v.trim().replace(/\//g, "-").replace(" ", "T");
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(t)) t += endOfDay ? "T23:59:59" : "T00:00:00";
+    t = t.replace(/T(\d):/, "T0$1:");
+    t = t.replace(/^(\d{4})-(\d{1,2})-(\d{1,2})/, function(m, y, mo, d){ return y + "-" + ("0" + mo).slice(-2) + "-" + ("0" + d).slice(-2); });
+    var d = new Date(t);
+    return isNaN(d.getTime()) ? "invalid" : d;
+  }
+  function formatJa(d){
+    return (d.getMonth() + 1) + "月" + d.getDate() + "日 " + d.getHours() + ":" + ("0" + d.getMinutes()).slice(-2);
+  }
+  // 公開中なら null、公開期間外なら画面に出す文言を返す
+  function availabilityMessage(cfg, now){
+    if (!cfg) return null;
+    if (cfg.enabled === false || cfg.enabled === "false"){
+      return { title: "現在、このページは公開していません", text: "" };
+    }
+    var from = parseConfigDate(cfg.availableFrom, false), until = parseConfigDate(cfg.availableUntil, true);
+    if (from instanceof Date && now < from){
+      return { title: "このページはまだ公開前です", text: formatJa(from) + " から公開します。", reopenAt: from };
+    }
+    if (until instanceof Date && now > until){
+      return { title: "このページの公開期間は終了しました", text: "ご利用ありがとうございました。" };
+    }
+    return null;
+  }
+  function showClosed(msg){
+    state.closed = true;
+    if (state.refreshTimer){ clearInterval(state.refreshTimer); state.refreshTimer = null; }
+    if (typeof WordCloud.stop === "function"){ WordCloud.stop(); }
+    document.getElementById("closedTitle").textContent = msg.title;
+    document.getElementById("closedText").textContent = msg.text;
+    document.body.classList.add("closed");
+    if (fsElement()){ exitFullscreen(); }
+  }
+  // ページを開いたままでも、終了時刻になったら閉じる・開始時刻になったら読み込み直す（1分ごとに確認）
+  function watchAvailability(cfg){
+    setInterval(function(){
+      var msg = availabilityMessage(cfg, new Date());
+      if (msg && !state.closed){ showClosed(msg); }
+      else if (!msg && state.closed){ location.reload(); }
+    }, 60000);
+  }
+  function warnInvalidDates(cfg){
+    var bad = [];
+    if (parseConfigDate(cfg.availableFrom, false) === "invalid") bad.push("availableFrom");
+    if (parseConfigDate(cfg.availableUntil, true) === "invalid") bad.push("availableUntil");
+    if (bad.length){ showStatus("config.json の " + bad.join("・") + " の日時が読み取れないため、公開期間の制限をかけていません（例: \"2026-11-20 21:00\"）。", "error"); }
+  }
+
+  // 投影モードで質問が0件のときに出すQRコード（config.json の formUrl）
+  function setGuideQr(url){
+    var box = document.getElementById("egQr");
+    box.innerHTML = "";
+    if (typeof url !== "string" || !/^https?:\/\/\S+$/.test(url.trim()) || typeof qrcode !== "function") return;
+    try {
+      var qr = qrcode(0, "M"); qr.addData(url.trim(), "Byte"); qr.make();
+      box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    } catch (e){ box.innerHTML = ""; }
+  }
+
   function applyConfig(cfg){
-    if (cfg){ setEventInfo(cfg.eventTitle, cfg.speaker); }
+    if (cfg){ setEventInfo(cfg.eventTitle, cfg.speaker); setGuideQr(cfg.formUrl); }
     // データソース固定モード：lockDataSource が true のとき、URL入力・CSVアップロードを画面から隠し、
     // config.json の csvUrl だけを使う（誤操作で別のデータに切り替わらないようにするための機能）。
     if (cfg && (cfg.lockDataSource === true || cfg.lockDataSource === "true")){
@@ -1285,6 +1407,7 @@
         els.catCol.value = "";
       }
       runAggregate();
+      warnInvalidDates(cfg);   // 公開期間の日時が読めないときは、集計結果の表示のあとに知らせる
 
       if (cfg.refreshIntervalMs){
         var opt = els.refreshInterval.querySelector('option[value="'+cfg.refreshIntervalMs+'"]');
@@ -1308,6 +1431,11 @@
     })
     .catch(function(){ return null; })
     .then(function(cfg){
+      if (cfg){
+        watchAvailability(cfg);
+        var closedMsg = availabilityMessage(cfg, new Date());
+        if (closedMsg){ showClosed(closedMsg); return; }   // 公開期間外：CSVも辞書も読み込まない
+      }
       // morphology:true のときだけ辞書を読み込む（初期設定は簡易抽出のみ）
       if (!(cfg && (cfg.morphology === true || cfg.morphology === "true"))){
         state.tokenizerStatus = "off";

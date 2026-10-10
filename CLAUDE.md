@@ -15,16 +15,17 @@
 - `config.json` … 本番設定。GitHub Pages はブラウザから書き込めないため、手動コミットで更新する。
 - `README.md` … 設置手順と config.json の項目表。機能を変えたら更新する。
 - `form-kit.html` … Googleフォーム用のヘッダー画像（1600×400）とQRコード案内スライド（1920×1080）をcanvasで作ってPNG保存するページ。紙の質問用紙（A4に1枚／2枚分）もHTML＋印刷用CSSで作る（印刷時は `#paperSection` の用紙以外を `display:none`。visibility だと隠れた部分が場所を取り4ページになった）。config.json の eventTitle / speaker を読む。QRは qrcode-generator 1.4.4（CDN）。
-- 外部ライブラリ（CDN: cdn.jsdelivr.net、バージョン固定）: PapaParse 5.4.1 / wordcloud2.js 1.2.2 / Kuromoji.js 0.1.2（辞書は約18MB）。
+- 外部ライブラリ（CDN: cdn.jsdelivr.net、バージョン固定）: PapaParse 5.4.1 / wordcloud2.js 1.2.2 / Kuromoji.js 0.1.2（辞書は約18MB）/ qrcode-generator 1.4.4（index.html の0件時QRと form-kit.html）。
 
 ## config.json の項目
 `csvUrl`（`/pub?...output=csv` 形式。`/pubhtml` は不可）/ `lockDataSource`（画面のURL入力を隠す）/
 `questionColumn` / `categoryColumn`（現在は「所属」）/ `excludeWords` / `autoRefresh` /
-`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html のQR用。回答用URL）/
+`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
 `morphology`（`true` のときだけ形態素解析を使う。初期は無効＝簡易抽出）
 
 ## 主な機能と実装の要点
 - **自動更新**: `refreshIfChanged` がCSV本文を前回と比較し、変化があったときだけ再集計・再描画する。列の選択は保持する。
+- **0件時のQR案内**: `body.no-questions`（`runAggregate` で切替）かつ投影モードのとき `#emptyGuide` を表示。見出し行だけのCSV（回答0件）も読み込み成功として扱う（以前は失敗扱いで、自動更新が始まらなかった）。
 - **投影モード**: `body.presentation`。JSがインラインで付ける `display` に勝つため、CSSは `!important` を使う。上部バー（セミナー名を太字・1行、質問数）あり。登壇者は出さない（form-kit.html 用に config の speaker は残す）。文字サイズは画面幅に連動（`--pb-fs`）。投影モード切替ボタンは右下。全画面API（Safari向けにwebkit接頭辞を吸収）。
 - **単語クリック**: ポップアップで該当質問を表示。ワードクラウドの大きさとポップアップの件数は同じ基準（`wordQuestions`）。
 - **色**: 単語の色は、その単語に最も多く紐づく所属の色。

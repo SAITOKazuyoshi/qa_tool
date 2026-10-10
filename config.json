@@ -9,5 +9,8 @@
   "excludeWords": "質問, 教えて, ください",
   "autoRefresh": true,
   "refreshIntervalMs": 15000,
-  "formUrl": "https://forms.gle/KegSbACHBMaj58pMA"
+  "formUrl": "https://forms.gle/KegSbACHBMaj58pMA",
+  "enabled": true,
+  "availableFrom": "2026-10-01",
+  "availableUntil": "2026-12-31"
 }
