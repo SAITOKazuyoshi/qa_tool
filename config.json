@@ -1,7 +1,7 @@
 {
   "csvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRv8VH7YpkTwy1XYMNzBDI9ZtKvs1AkveiAd-WqnaG04_ZujISrH3s7p2LAwiuhMTOgfxDs67SoTcRX/pub?output=csv",
   "eventTitle": "くしろ支部　11月例会（くしろ支部統合10周年記念事業）",
-  "speaker": ,
+  "speaker": "",
   "lockDataSource": true,
   "morphology": true,
   "questionColumn": "質問内容",
