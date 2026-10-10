@@ -213,6 +213,7 @@
   .mode-btn:hover{background:var(--ink);color:#fff;transform:none;}
   body.presentation .mode-btn{opacity:.3;}
   body.presentation .mode-btn:hover{opacity:1;}
+  body.presentation .mode-bar{top:auto;bottom:16px;}  /* 上部バーと重ならないよう右下へ */
 
   /* ---- 投影モード：会場のスクリーンから見やすい大きな表示に切替 ---- */
   /* カテゴリ一覧・質問一覧・各種設定を隠し、ワードクラウドだけを画面いっぱいに表示する */
@@ -227,18 +228,19 @@
   body.presentation footer{display:none !important;}
 
   body.presentation .wrap{max-width:100%;padding:0;}
-  body.presentation #resultSection{margin:0;height:calc(100vh - 56px);}
+  body.presentation #resultSection{margin:62px 0 0;height:calc(100vh - 62px);}
   body.presentation .grid-2{display:block;height:100%;}
   body.presentation .cloud-panel{
-    height:100%;border:0;border-top:6px solid var(--coral);border-radius:0;padding:12px;
+    height:100%;border:0;border-radius:0;padding:12px;
   }
   body.presentation #cloudCanvas{border-radius:0;}
 
-  /* ---- 投影モード下部バー：セミナー名・登壇者・質問数 ---- */
+  /* ---- 投影モード上部バー：セミナー名・登壇者・質問数 ---- */
   .pres-bar{display:none;}
   body.presentation .pres-bar{
-    display:flex;position:fixed;left:0;right:0;bottom:0;height:56px;z-index:10;
-    align-items:center;gap:14px;padding:0 24px;background:#fff;border-top:1px solid var(--line);
+    display:flex;position:fixed;left:0;right:0;top:0;height:62px;z-index:10;
+    align-items:center;gap:14px;padding:0 24px;background:#fff;
+    border-top:6px solid var(--coral);border-bottom:1px solid var(--line);
   }
   .pb-event{font-size:18px;font-weight:700;line-height:1.25;color:var(--ink);min-width:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;}  /* 長いときは2行まで折り返す */
   .pb-event:empty{display:none;}
@@ -252,7 +254,7 @@
   .fx-layer{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:5;}
   .fx-hl{
     position:absolute;border-radius:14px;background:rgba(255,200,0,.5);mix-blend-mode:multiply;
-    box-shadow:0 0 0 3px rgba(255,170,0,.85),0 0 22px 6px rgba(255,190,0,.65);
+    box-shadow:0 0 22px 6px rgba(255,190,0,.65);
     animation:fxGlow 1.8s ease-in-out infinite alternate;      /* 次の更新まで光り続ける */
   }
   @keyframes fxGlow{0%{opacity:.45}100%{opacity:1}}
@@ -1233,12 +1235,12 @@
   // 同じフォルダに config.json を置いておくと、ページを開くだけで
   // CSV読み込み〜列指定〜集計〜自動更新設定までを自動実行する。
   // config.json が無い場合は何もせず、通常の手動操作にフォールバックする。
-  // セミナー名・登壇者名（config.json の eventTitle / speaker）を画面と投影モードの下部バーに表示する
+  // セミナー名・登壇者名（config.json の eventTitle / speaker）を画面と投影モードの上部バーに表示する
   function setEventInfo(title, speaker){
     var parts = [title, speaker].filter(function(x){ return typeof x === "string" && x.trim(); })
                                 .map(function(x){ return x.trim(); });
     var text = parts.join("　｜　");
-    // 下部バーは講演タイトルと講師を別々のかたまりにして、入りきらないときは講師ごと2行目へ送る（名前の途中で改行しない）
+    // 上部バーは講演タイトルと講師を別々のかたまりにして、入りきらないときは講師ごと2行目へ送る（名前の途中で改行しない）
     els.pbEvent.textContent = "";
     parts.forEach(function(x, i){
       var span = document.createElement("span");
