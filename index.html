@@ -196,12 +196,6 @@
 
   /* ---- データソース固定モード（config.json の lockDataSource: true） ----
      URL入力・読み込みボタン・CSVアップロードを隠し、config.json の csvUrl だけを使う */
-  .lock-note{
-    display:none;margin:0;padding:10px 14px;border-radius:8px;
-    background:#f6f2e2;border-left:4px solid var(--gold);
-    color:var(--ink-soft);font-size:13px;
-  }
-  body.source-locked .lock-note{display:block;}
   body.source-locked .src-input{display:none !important;}
 
   /* ---- 投影モード切替ボタン（常時表示） ---- */
@@ -362,7 +356,6 @@
   <section id="sourceSection" class="accent-a">
     <h2><span class="badge">01</span>データソース</h2>
     <div class="panel">
-      <p class="lock-note" id="lockNote">データソースは config.json で固定されています（この画面では変更できません）。</p>
       <div class="field src-input">
         <label for="csvUrl">公開CSVのURL（スプレッドシートを「ウェブに公開」→ CSV 形式で取得したリンク）</label>
         <input type="url" id="csvUrl" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv">
