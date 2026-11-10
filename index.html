@@ -199,7 +199,8 @@
   body.source-locked .src-input{display:none !important;}
 
   /* ---- 投影モード切替ボタン（常時表示） ---- */
-  .mode-bar{position:fixed;top:16px;right:16px;z-index:1000;}
+  .mode-bar{position:fixed;top:16px;right:16px;z-index:1000;display:flex;gap:8px;}
+  .mode-btn.pre-on{background:var(--gold);border-color:var(--gold);color:var(--ink);}
   .mode-btn{
     font-size:12.5px;padding:9px 16px;background:#fff;color:var(--ink);
     border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.08);
@@ -330,6 +331,7 @@
 </head>
 <body class="no-questions">
 <div class="mode-bar">
+  <button id="preToggleBtn" class="ghost mode-btn" type="button" style="display:none;">事前質問：非表示中</button>
   <button id="presentModeBtn" class="ghost mode-btn" type="button">投影モードで表示</button>
 </div>
 <div class="wrap">
@@ -510,6 +512,9 @@
     refreshTimer: null,
     refreshing: false,   // 自動更新の通信中フラグ（重複実行を防ぐ）
     closed: false,       // 公開期間外（config.json の enabled / availableFrom / availableUntil）
+    preCol: "",          // 事前質問を見分ける列（config.json の preQuestionColumn。例: 参加方法）
+    preValue: "",        // その列で事前質問を表す値（preQuestionValue。例: 事前質問）
+    showPre: true,       // 事前質問を集計・表示するか（講演中は false、対談で true に切り替える）
     refreshFailed: false, // 直前の自動更新が通信エラーだったか
     sourceLocked: false,  // config.json の lockDataSource が true（画面からデータソースを変更できない）
     lastCsvText: null,   // 前回取得したCSVの中身（自動更新で変化を検知するために使う）
@@ -521,7 +526,7 @@
   ["csvUrl","loadBtn","autoRefresh","refreshInterval","csvFile","statusBox",
    "mapSection","qCol","catCol","excludeWords","aggregateBtn",
    "resultSection","cloudCanvas","catList",
-   "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn",
+   "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn","preToggleBtn",
    "kwModal","kwCard","kwTitle","kwBody","kwClose","pbEvent","pbCount","eventLine"
   ].forEach(function(id){ els[id] = document.getElementById(id); });
 
@@ -879,9 +884,13 @@
     var seenQuestions = state.seenQuestions || Object.create(null);
     var newWordCount = Object.create(null);
 
+    var hiddenPre = 0;
+    var filterPre = !!(state.preCol && state.preValue && !state.showPre);
     state.rows.forEach(function(row){
       var q = (row[qCol] || "").toString().trim();
       if (!q) return;
+      // 事前質問を隠している間は、集計にも件数にも入れない（「表示済み」の記録にも入れないので、表示に切り替えたとき新着として光る）
+      if (filterPre && (row[state.preCol] || "").toString().trim() === state.preValue){ hiddenPre++; return; }
       var cat = catCol ? (row[catCol] || "").toString().trim() : "";
       questions.push({ question: q, category: cat });
       var qIndex = questions.length - 1;
@@ -940,7 +949,8 @@
     els.listSection.style.display = "block";
     els.pbCount.textContent = "質問 " + questions.length + "件";
     document.body.classList.toggle("no-questions", questions.length === 0);   // 0件のときは投影モードでQR案内を出す
-    showStatus(questions.length + " 件の質問を集計しました" + extractModeLabel() + "。", "ok");
+    showStatus(questions.length + " 件の質問を集計しました" + extractModeLabel() +
+      (hiddenPre ? "（事前質問 " + hiddenPre + " 件は非表示中）" : "") + "。", "ok");
   }
   els.aggregateBtn.addEventListener("click", runAggregate);
 
@@ -1367,8 +1377,36 @@
     } catch (e){ box.innerHTML = ""; }
   }
 
+  // ---------- 事前質問の表示切替（講演中は隠し、講師との対談で表示する）----------
+  function preStoreKey(){ return "koemiru-showPre:" + (document.title || ""); }
+  function updatePreToggle(){
+    els.preToggleBtn.textContent = state.showPre ? "事前質問：表示中" : "事前質問：非表示中";
+    els.preToggleBtn.classList.toggle("pre-on", state.showPre);
+  }
+  function setupPreQuestions(cfg){
+    if (!cfg || typeof cfg.preQuestionColumn !== "string" || !cfg.preQuestionColumn.trim()) return;
+    state.preCol = cfg.preQuestionColumn.trim();
+    state.preValue = (typeof cfg.preQuestionValue === "string" && cfg.preQuestionValue.trim()) ? cfg.preQuestionValue.trim() : "事前質問";
+    state.showPre = (cfg.showPreQuestions === true || cfg.showPreQuestions === "true");
+    // 当日、ページを開き直しても切替の状態が戻らないよう、このブラウザに覚えておく
+    try {
+      var saved = localStorage.getItem(preStoreKey());
+      if (saved === "1" || saved === "0") state.showPre = (saved === "1");
+    } catch (e){}
+    els.preToggleBtn.style.display = "";
+    updatePreToggle();
+  }
+  els.preToggleBtn.addEventListener("click", function(){
+    state.showPre = !state.showPre;
+    try { localStorage.setItem(preStoreKey(), state.showPre ? "1" : "0"); } catch (e){}
+    updatePreToggle();
+    if (!state.rows || !state.rows.length) return;
+    state.highlightNext = state.showPre;   // 表示に切り替えたときは、事前質問の単語を新着として光らせる
+    runAggregate();
+  });
+
   function applyConfig(cfg){
-    if (cfg){ setEventInfo(cfg.eventTitle, cfg.speaker); setGuideQr(cfg.formUrl); }
+    if (cfg){ setEventInfo(cfg.eventTitle, cfg.speaker); setGuideQr(cfg.formUrl); setupPreQuestions(cfg); }
     // データソース固定モード：lockDataSource が true のとき、URL入力・CSVアップロードを画面から隠し、
     // config.json の csvUrl だけを使う（誤操作で別のデータに切り替わらないようにするための機能）。
     if (cfg && (cfg.lockDataSource === true || cfg.lockDataSource === "true")){

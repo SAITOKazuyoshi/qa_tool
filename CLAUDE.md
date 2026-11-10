@@ -20,11 +20,12 @@
 ## config.json の項目
 `csvUrl`（`/pub?...output=csv` 形式。`/pubhtml` は不可）/ `lockDataSource`（画面のURL入力を隠す）/
 `questionColumn` / `categoryColumn`（現在は「所属」）/ `excludeWords` / `autoRefresh` /
-`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
+`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `preQuestionColumn` / `preQuestionValue` / `showPreQuestions`（事前質問の表示切替）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
 `morphology`（`true` のときだけ形態素解析を使う。初期は無効＝簡易抽出）
 
 ## 主な機能と実装の要点
 - **自動更新**: `refreshIfChanged` がCSV本文を前回と比較し、変化があったときだけ再集計・再描画する。列の選択は保持する。
+- **事前質問の表示切替**: `state.showPre` が false の間、`runAggregate` で `preQuestionColumn` の値が `preQuestionValue` の行を集計から外す（`seenQuestions` にも入れないので、表示に切り替えたとき新着として光る）。ボタンは `#preToggleBtn`（mode-bar 内）。状態は localStorage（キー `koemiru-showPre:<document.title>`）に保存。
 - **0件時のQR案内**: `body.no-questions`（`runAggregate` で切替）かつ投影モードのとき `#emptyGuide` を表示。見出し行だけのCSV（回答0件）も読み込み成功として扱う（以前は失敗扱いで、自動更新が始まらなかった）。
 - **投影モード**: `body.presentation`。JSがインラインで付ける `display` に勝つため、CSSは `!important` を使う。上部バー（セミナー名を太字・1行、質問数）あり。登壇者は出さない（form-kit.html 用に config の speaker は残す）。文字サイズは画面幅に連動（`--pb-fs`）。投影モード切替ボタンは右下。全画面API（Safari向けにwebkit接頭辞を吸収）。
 - **単語クリック**: ポップアップで該当質問を表示。ワードクラウドの大きさとポップアップの件数は同じ基準（`wordQuestions`）。
