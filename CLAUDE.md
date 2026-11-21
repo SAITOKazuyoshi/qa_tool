@@ -20,7 +20,7 @@
 ## config.json の項目
 `csvUrl`（`/pub?...output=csv` 形式。`/pubhtml` は不可）/ `lockDataSource`（画面のURL入力を隠す）/
 `questionColumn` / `categoryColumn`（現在は「所属」）/ `excludeWords` / `autoRefresh` /
-`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `preQuestionColumn` / `preQuestionValue` / `showPreQuestions`（事前質問の表示切替）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
+`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `nameColumn`（質問者。省略時は自動判定）/ `preQuestionColumn` / `preQuestionValue` / `showPreQuestions`（事前質問の表示切替）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
 `morphology`（`true` のときだけ形態素解析を使う。初期は無効＝簡易抽出）
 
 ## 主な機能と実装の要点
@@ -28,7 +28,7 @@
 - **事前質問の表示切替**: `state.showPre` が false の間、`runAggregate` で `preQuestionColumn` の値が `preQuestionValue` の行を集計から外す（`seenQuestions` にも入れないので、表示に切り替えたとき新着として光る）。ボタンは `#preToggleBtn`（mode-bar 内）。状態は localStorage（キー `koemiru-showPre:<document.title>`）に保存。
 - **0件時のQR案内**: `body.no-questions`（`runAggregate` で切替）かつ投影モードのとき `#emptyGuide` を表示。見出し行だけのCSV（回答0件）も読み込み成功として扱う（以前は失敗扱いで、自動更新が始まらなかった）。
 - **投影モード**: `body.presentation`。JSがインラインで付ける `display` に勝つため、CSSは `!important` を使う。上部バー（セミナー名を太字・1行、質問数）あり。登壇者は出さない（form-kit.html 用に config の speaker は残す）。文字サイズは画面幅に連動（`--pb-fs`）。投影モード切替ボタンは右下。全画面API（Safari向けにwebkit接頭辞を吸収）。
-- **単語クリック**: ポップアップで該当質問を表示。ワードクラウドの大きさとポップアップの件数は同じ基準（`wordQuestions`）。
+- **単語クリック**: ポップアップで該当質問を表示。一覧の質問クリックで1件表示（`showSingleQuestion`、質問者は `nameColumn` または「名前・氏名」を含む列を（）で表示。Escで一覧へ、自動更新後も `state.popupSingle` で同じ質問を維持）。ワードクラウドの大きさとポップアップの件数は同じ基準（`wordQuestions`）。
 - **色**: 単語の色は、その単語に最も多く紐づく所属の色。
 - **新着演出**: 自動更新で初めて出てきた質問（`seenQuestions` に無い行）に含まれる単語（最大12語）が大きくなり、次の更新まで光る。件数の増減では判定しない（Googleの公開CSVは更新直後に新旧データを交互に返すことがあり、同じ質問が何度も光ったため）。位置は wordcloud2 の `hover` を使って画面全体をなぞって取得する。
 - **単語抽出**: 既定は簡易抽出（漢字・カタカナ・英数字の連続）。`morphology: true` のとき、Kuromoji を **Web Worker** で動かす。辞書の展開をメイン処理でやると画面全体が固まるため、必ず別スレッドにすること。辞書の準備前は簡易抽出で先に表示し、準備後に自動で切り替える。60秒で打ち切り。
