@@ -242,11 +242,56 @@
   }
   .pb-event{font-size:1em;font-weight:700;line-height:1.3;color:var(--ink);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}  /* 講演タイトルのみ（講師は出さない） */
   .pb-event:empty{display:none;}
-  .pb-count{margin-left:auto;flex-shrink:0;font-size:.8em;font-weight:700;color:var(--ink-soft);}
+  .pb-count{flex-shrink:0;font-size:.8em;font-weight:700;color:var(--ink-soft);}
+  /* 自動更新の状態（投影中に更新が止まっても気づけるように） */
+  .pb-status{margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:.4em;font-size:.42em;font-weight:700;color:var(--ink-soft);white-space:nowrap;}
+  .pb-status::before{content:"";width:.75em;height:.75em;border-radius:50%;background:var(--green);}
+  .pb-status.stale{color:#9a6a12;} .pb-status.stale::before{background:var(--gold);}
+  .pb-status.warn{color:#b0402f;} .pb-status.warn::before{background:#d1483a;}
+  .pb-status:empty{display:none;}
   .event-line{font-size:13px;color:var(--ink-soft);margin-top:2px;}
   .event-line:empty{display:none;}
   .kit-link{display:inline-block;margin:6px 16px 0 0;font-size:13px;font-weight:700;color:var(--green-deep);text-decoration:none;border-bottom:1px solid currentColor;}
   .kit-link:hover{color:var(--ink);}
+  button.kit-link{background:none;border:0;border-bottom:1px solid currentColor;border-radius:0;padding:0;font:inherit;font-size:13px;font-weight:700;cursor:pointer;box-shadow:none;}
+  button.kit-link:hover{background:none;transform:none;}
+
+  /* ---- 開催レポート（画面に表示して印刷・PDF保存）---- */
+  .report-view{display:none;}
+  body.reporting .report-view{display:block;}
+  body.reporting .wrap, body.reporting .mode-bar, body.reporting .pres-bar,
+  body.reporting .empty-guide, body.reporting .kw-modal{display:none !important;}
+  .rp{max-width:900px;margin:0 auto;padding:24px 16px 64px;color:var(--ink);}
+  .rp-tools{display:flex;gap:10px;justify-content:flex-end;margin-bottom:16px;}
+  .rp-tools button{font-size:14px;}
+  .rp h1{font-size:26px;margin:0 0 4px;}
+  .rp .rp-sub{color:var(--ink-soft);font-size:14px;margin:0 0 2px;}
+  .rp h2{font-size:18px;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line);}
+  .rp-tiles{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px;}
+  .rp-tile{flex:1 1 150px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;}
+  .rp-tile b{display:block;font-size:26px;line-height:1.2;}
+  .rp-tile span{font-size:12.5px;color:var(--ink-soft);}
+  .rp-cloud{display:block;max-width:100%;max-height:60vh;width:auto;height:auto;margin:0 auto;border:1px solid var(--line);border-radius:10px;background:#fff;}
+  .rp table{border-collapse:collapse;width:100%;font-size:14px;}
+  .rp th,.rp td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;}
+  .rp th{font-size:12.5px;color:var(--ink-soft);font-weight:700;}
+  .rp td.num{text-align:right;white-space:nowrap;width:4em;}
+  .rp .bar{height:10px;border-radius:5px;background:var(--green);min-width:2px;}
+  .rp-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  @media (max-width:700px){ .rp-cols{grid-template-columns:1fr;} }
+  .rp-cat{margin:18px 0 6px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;}
+  .rp-cat i{width:12px;height:12px;border-radius:3px;display:inline-block;}
+  .rp-q{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.6;break-inside:avoid;}
+  .rp-q .m{font-size:11.5px;color:var(--ink-soft);}
+  .rp-q .who{color:var(--ink-soft);}
+  .rp-note{font-size:12.5px;color:var(--ink-soft);margin-top:6px;}
+  @media print{
+    body.reporting{background:#fff;}
+    .rp-tools{display:none;}
+    .rp{padding:0;max-width:none;}
+    .rp h2{break-after:avoid;}
+    .rp-cloud{max-height:95mm;}   /* 1ページ目に収まる高さに */
+  }
 
   /* ---- 質問が追加されたときの演出：増えた単語を光らせ、ぽんと大きく見せる ---- */
   .cloud-panel{position:relative;}
@@ -367,6 +412,7 @@
           <div class="event-line" id="eventLine"></div>
           <a class="kit-link" href="form-kit.html" target="_blank" rel="noopener">フォーム素材づくり（ヘッダー画像・QRコード案内・紙の質問用紙）→</a>
           <a class="kit-link" href="manual.html" target="_blank" rel="noopener">投影モードの操作マニュアル →</a>
+          <button type="button" class="kit-link" id="reportBtn">開催レポートを作成 →</button>
         </div>
       </div>
     </div>
@@ -457,6 +503,7 @@
 
 <div class="pres-bar" id="presBar">
     <span class="pb-event" id="pbEvent"></span>
+    <span class="pb-status" id="pbStatus"></span>
     <span class="pb-count" id="pbCount"></span>
 </div>
 
@@ -496,6 +543,8 @@
     <div class="kw-body" id="kwBody"></div>
   </div>
 </div>
+
+<div class="report-view" id="reportView"></div>
 
 <script>
 (function(){
@@ -545,7 +594,7 @@
   ["csvUrl","loadBtn","autoRefresh","refreshInterval","csvFile","statusBox",
    "mapSection","qCol","catCol","excludeWords","aggregateBtn",
    "resultSection","cloudCanvas","catList",
-   "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn","preToggleBtn",
+   "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn","preToggleBtn","pbStatus","reportBtn","reportView",
    "kwModal","kwCard","kwTitle","kwBody","kwClose","pbEvent","pbCount","eventLine"
   ].forEach(function(id){ els[id] = document.getElementById(id); });
 
@@ -615,7 +664,9 @@
       })
       .then(function(text){
         state.lastCsvText = text;   // 自動更新で「前回から変化したか」を比べる基準にする
+        state.lastCheckAt = new Date();
         parseAndStore(text);
+        updateRefreshStatus();
       })
       .catch(function(err){
         var hint = state.sourceLocked
@@ -672,6 +723,7 @@
         return res.text();
       })
       .then(function(text){
+        state.lastCheckAt = new Date();               // 取得できた時刻（変化の有無にかかわらず）
         if (text === state.lastCsvText){              // 変化なし
           if (state.refreshFailed){                   // 通信エラーから復旧したときだけ表示を戻す
             state.refreshFailed = false;
@@ -695,8 +747,30 @@
         state.refreshFailed = true;
         showStatus("自動更新に失敗しました（" + err.message + "）。次回の更新で再試行します。", "error");
       })
-      .then(function(){ state.refreshing = false; });
+      .then(function(){ state.refreshing = false; updateRefreshStatus(); });
   }
+
+  // 投影画面の上部バーに、自動更新の状態を小さく出す（緑：正常／黄：しばらく確認できていない／赤：失敗・自動更新オフ）
+  function hhmm(d){ return d.getHours() + ":" + ("0" + d.getMinutes()).slice(-2); }
+  function updateRefreshStatus(){
+    var el = els.pbStatus;
+    if (!el) return;
+    var cls = "", text = "";
+    var last = state.lastCheckAt ? "最終確認 " + hhmm(state.lastCheckAt) : "";
+    if (state.dataMode === "url" && !els.autoRefresh.checked){
+      cls = "warn"; text = "自動更新オフ";
+    } else if (state.refreshFailed){
+      cls = "warn"; text = "更新できません" + (last ? "（" + last + "）" : "");
+    } else if (state.lastCheckAt && els.autoRefresh.checked){
+      var ms = parseInt(els.refreshInterval.value, 10) || 60000;
+      var stale = (Date.now() - state.lastCheckAt.getTime()) > ms * 3 + 10000;
+      cls = stale ? "stale" : ""; text = stale ? "更新が止まっています（" + last + "）" : last;
+    }
+    el.className = "pb-status" + (cls ? " " + cls : "");
+    el.textContent = text;
+  }
+  setInterval(updateRefreshStatus, 10000);
+  els.autoRefresh.addEventListener("change", function(){ updateRefreshStatus(); });
   els.refreshInterval.addEventListener("change", function(){
     if (els.autoRefresh.checked){ els.autoRefresh.checked = false; els.autoRefresh.dispatchEvent(new Event("change")); els.autoRefresh.checked = true; els.autoRefresh.dispatchEvent(new Event("change")); }
   });
@@ -904,17 +978,23 @@
     return idx.map(function(i){ return state.questions[i]; });
   }
 
+  // 除外語（既定の除外語＋画面・config.json の excludeWords）
+  function buildExcludeSet(){
+    var exclude = DEFAULT_STOPWORDS.slice();
+    var custom = els.excludeWords.value.split(",").map(function(s){return s.trim();}).filter(Boolean);
+    exclude = exclude.concat(custom);
+    var excludeSet = Object.create(null);
+    exclude.forEach(function(w){ excludeSet[w] = true; });
+    return excludeSet;
+  }
+
   // ---------- 集計 ----------
   function runAggregate(){
     var qCol = els.qCol.value;
     var catCol = els.catCol.value;
     if (!qCol){ showStatus("質問文の列を選択してください。", "error"); return; }
 
-    var exclude = DEFAULT_STOPWORDS.slice();
-    var custom = els.excludeWords.value.split(",").map(function(s){return s.trim();}).filter(Boolean);
-    exclude = exclude.concat(custom);
-    var excludeSet = Object.create(null);
-    exclude.forEach(function(w){ excludeSet[w] = true; });
+    var excludeSet = buildExcludeSet();
 
     var questions = [];
     // 単語をキーにするので、"constructor" などの名前でも壊れないよう、プロトタイプのない入れ物を使う
@@ -1433,6 +1513,105 @@
     if (state.freq) renderWordCloud(state.freq);
   });
 
+  // ---------- 開催レポート（すべての質問の集計を1ページにまとめ、印刷・PDF保存できるようにする）----------
+  els.reportBtn.addEventListener("click", function(){
+    if (!state.rows || !els.qCol.value){ showStatus("先にデータを読み込んで集計してください。", "error"); return; }
+    var qCol = els.qCol.value;
+    // 形態素解析の結果がまだ無い質問（隠している事前質問など）は、先に解析を頼んでから少し待って作る
+    state.rows.forEach(function(r){ var q = (r[qCol] || "").toString().trim(); if (q) extractKeywords(q); });
+    els.reportBtn.disabled = true;
+    setTimeout(function(){ els.reportBtn.disabled = false; buildReport(); }, state.tokenizerStatus === "ready" ? 800 : 0);
+  });
+
+  function buildReport(){
+    var qCol = els.qCol.value, catCol = els.catCol.value, nameCol = findNameColumn();
+    var hs = state.headers || [];
+    var methodCol = (state.preCol && hs.indexOf(state.preCol) !== -1) ? state.preCol : "";
+    var timeCol = ""; hs.forEach(function(h){ if (!timeCol && /タイムスタンプ|日時|時刻/.test(h)) timeCol = h; });
+    var excludeSet = buildExcludeSet();
+
+    var all = [], freq = Object.create(null), catCount = Object.create(null), methodCount = Object.create(null);
+    state.rows.forEach(function(row){
+      var q = (row[qCol] || "").toString().trim();
+      if (!q) return;
+      var item = {
+        q: q,
+        cat: catCol ? (row[catCol] || "").toString().trim() : "",
+        who: nameCol ? (row[nameCol] || "").toString().trim() : "",
+        method: methodCol ? (row[methodCol] || "").toString().trim() : "",
+        time: timeCol ? (row[timeCol] || "").toString().trim() : ""
+      };
+      all.push(item);
+      catCount[item.cat || "（未分類）"] = (catCount[item.cat || "（未分類）"] || 0) + 1;
+      if (methodCol) methodCount[item.method || "（未記入）"] = (methodCount[item.method || "（未記入）"] || 0) + 1;
+      var seen = Object.create(null);
+      extractKeywords(q).forEach(function(w){
+        if (excludeSet[w] || seen[w]) return;
+        seen[w] = true; freq[w] = (freq[w] || 0) + 1;
+      });
+    });
+
+    function sorted(obj){ return Object.keys(obj).map(function(k){ return [k, obj[k]]; }).sort(function(a,b){ return b[1]-a[1]; }); }
+    var words = sorted(freq).slice(0, 20), cats = sorted(catCount), methods = sorted(methodCount);
+    var colorMap = state.categoryColorMap || {};
+    function table(rows, head, color){
+      var max = rows.length ? rows[0][1] : 1;
+      return '<table><tr><th>' + head + '</th><th class="num">件数</th><th style="width:40%"></th></tr>' +
+        rows.map(function(r, i){
+          var c = color ? (colorMap[r[0]] || "#2f9e64") : "#2f9e64";
+          return '<tr><td>' + (color ? "" : (i + 1) + ". ") + escapeHtml(r[0]) + '</td><td class="num">' + r[1] + '</td>' +
+                 '<td><div class="bar" style="width:' + Math.round(r[1] / max * 100) + '%;background:' + c + '"></div></td></tr>';
+        }).join("") + '</table>';
+    }
+
+    var now = new Date();
+    var title = (state.eventTitle || document.title.replace(/｜コエミル$/, "")).trim();
+    var cloudImg = "";
+    try {
+      if (state.cloudDrawn && els.cloudCanvas.width > 1){ cloudImg = els.cloudCanvas.toDataURL("image/png"); }
+    } catch (e){ cloudImg = ""; }
+    var hiddenNote = (state.preCol && !state.showPre) ? "（画面では事前質問を非表示にしていますが、このレポートには含めています）" : "";
+
+    // 質問一覧：カテゴリごと（件数の多い順）、カテゴリ内は届いた順
+    var byCat = Object.create(null);
+    all.forEach(function(it){ (byCat[it.cat || "（未分類）"] = byCat[it.cat || "（未分類）"] || []).push(it); });
+    var list = cats.map(function(c){
+      return '<div class="rp-cat"><i style="background:' + (colorMap[c[0]] || "#2f9e64") + '"></i>' + escapeHtml(c[0]) + '（' + c[1] + '件）</div>' +
+        byCat[c[0]].map(function(it){
+          var meta = [it.time, it.method].filter(Boolean).map(escapeHtml).join("　");
+          return '<div class="rp-q">' + (meta ? '<div class="m">' + meta + '</div>' : "") + escapeHtml(it.q) +
+                 (it.who ? '<span class="who">（' + escapeHtml(it.who) + '）</span>' : "") + '</div>';
+        }).join("");
+    }).join("");
+
+    els.reportView.innerHTML =
+      '<div class="rp">' +
+        '<div class="rp-tools"><button type="button" id="rpPrint">印刷・PDFに保存</button><button type="button" class="ghost" id="rpClose">閉じる</button></div>' +
+        '<h1>開催レポート</h1>' +
+        '<p class="rp-sub"><b>' + escapeHtml(title) + '</b></p>' +
+        (state.speaker ? '<p class="rp-sub">' + escapeHtml(state.speaker) + '</p>' : "") +
+        '<p class="rp-sub">作成日時：' + now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + hhmm(now) + '</p>' +
+        '<div class="rp-tiles">' +
+          '<div class="rp-tile"><b>' + all.length + '</b><span>質問の総数</span></div>' +
+          methods.map(function(m){ return '<div class="rp-tile"><b>' + m[1] + '</b><span>' + escapeHtml(m[0]) + '</span></div>'; }).join("") +
+        '</div>' +
+        (hiddenNote ? '<p class="rp-note">' + hiddenNote + '</p>' : "") +
+        (cloudImg ? '<h2>ワードクラウド（作成時点の画面）</h2><img class="rp-cloud" alt="ワードクラウド" src="' + cloudImg + '">' : "") +
+        '<div class="rp-cols">' +
+          '<div><h2>よく出た言葉（上位' + words.length + '）</h2>' + table(words, "言葉", false) + '</div>' +
+          '<div><h2>カテゴリ別の件数</h2>' + table(cats, "カテゴリ", true) + '</div>' +
+        '</div>' +
+        '<h2>質問一覧（' + all.length + '件）</h2>' + list +
+      '</div>';
+    document.body.classList.add("reporting");
+    window.scrollTo(0, 0);
+    document.getElementById("rpPrint").addEventListener("click", function(){ window.print(); });
+    document.getElementById("rpClose").addEventListener("click", function(){
+      document.body.classList.remove("reporting");
+      els.reportView.innerHTML = "";
+    });
+  }
+
   // ---------- 投影モード（会場プロジェクタ表示用） ----------
   var presentationOn = false;
   function setPresentation(on){
@@ -1478,6 +1657,8 @@
   // config.json が無い場合は何もせず、通常の手動操作にフォールバックする。
   // セミナー名・登壇者名（config.json の eventTitle / speaker）を画面と投影モードの上部バーに表示する
   function setEventInfo(title, speaker){
+    state.eventTitle = (typeof title === "string") ? title.trim() : "";       // 開催レポートでも使う
+    state.speaker = (typeof speaker === "string") ? speaker.trim() : "";
     var parts = [title, speaker].filter(function(x){ return typeof x === "string" && x.trim(); })
                                 .map(function(x){ return x.trim(); });
     var text = parts.join("　｜　");
