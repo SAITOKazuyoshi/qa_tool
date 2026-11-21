@@ -700,14 +700,30 @@
 
   // ---------- キーワード抽出 ----------
   // 質問文から単語を取り出す。辞書の読み込みが済んでいれば形態素解析、そうでなければ簡易抽出。
+  // 人名などに使われる異体字を、解析のときだけ普通の字に置き換える（辞書が「山﨑」を知らず「山」「﨑」に分けてしまうため）。
+  // 1文字を1文字に置き換えるだけなので、画面に出す質問文の文字位置はずれない。
+  var VARIANT_MAP = { "﨑":"崎", "嵜":"崎", "髙":"高", "栁":"柳", "濵":"浜", "邉":"辺", "邊":"辺", "德":"徳", "瀨":"瀬", "槇":"槙" };
+  function normalizeVariants(text){
+    return String(text).replace(/[﨑嵜髙栁濵邉邊德瀨槇\uF900-\uFAFF]/g, function(c){
+      if (VARIANT_MAP[c]) return VARIANT_MAP[c];
+      var n = c.normalize ? c.normalize("NFKC") : c;      // 互換漢字（CJK互換用漢字）を通常の漢字に
+      return n.length === 1 ? n : c;
+    });
+  }
+  // 人名につく敬称（形態素解析では「名詞,接尾,人名」、簡易抽出では直後の文字で判定）
+  var HONORIFIC_RE = /^(さん|さま|様|氏|君|くん|ちゃん|殿)$/;
+
   function extractKeywords(text){
     if (!text) return [];
+    text = normalizeVariants(text);
     var toks = state.tokenizer ? state.tokenizer.tokenize(text) : null;   // 別スレッドで解析済みの結果（まだなら null）
     return toks ? extractByMorphology(toks) : extractBySimplePattern(text);
   }
 
   // 簡易抽出：漢字・カタカナ・英数字の連続を単語とみなす（辞書が使えないときの代替）
   function extractBySimplePattern(text){
+    // 「○○さん」「○○様」「○○氏」の○○（人名とみなす）は抽出しない
+    text = text.replace(/[一-鿿々〆ヵヶ]+(?=さん|さま|様|氏|君|くん|ちゃん|殿)/g, " ");
     var patterns = [
       /[一-鿿]{2,}/g,   // 漢字の連続（2文字以上）
       /[゠-ヿ]{2,}/g,   // カタカナの連続（2文字以上）
@@ -726,6 +742,8 @@
 
   function classifyToken(t){
     var s = t.surface_form;
+    if (t.pos === "名詞" && t.pos_detail_1 === "固有名詞" && t.pos_detail_2 === "人名") return "name";      // 人名は抽出しない
+    if (t.pos === "名詞" && t.pos_detail_1 === "接尾" && (t.pos_detail_2 === "人名" || HONORIFIC_RE.test(s))) return "honorific";
     if (t.pos === "接頭詞"){
       return (t.pos_detail_1 === "名詞接続" && PREFIX_MERGE.indexOf(s) !== -1) ? "prefix" : "other";
     }
@@ -749,18 +767,25 @@
     tokens.forEach(function(t){
       var s = t.surface_form, kind = classifyToken(t);
 
+      if (kind === "name"){ cur = null; return; }                  // 人名：組み立て中の語ごと捨てる（「山崎社長」→「社長」だけ残る）
+      if (kind === "honorific"){                                    // 「○○さん」：○○が固有名詞や辞書にない語なら人名とみなして捨てる
+        if (cur && cur.maybeName){ cur = null; } else { flush(); }   // 「社長さん」「利用者様」は「社長」「利用者」を残す
+        return;
+      }
+      var maybeName = (t.pos_detail_1 === "固有名詞") || t.word_type === "UNKNOWN";
+
       if (kind === "prefix"){ flush(); cur = { text: s, ok: false, kata: false, needStem: true }; return; }
 
       if (kind === "stem" || kind === "weakstem"){
         var strong = (kind === "stem"), kata = isKatakanaWord(s);
         if (cur && cur.needStem){                              // 接頭辞のあとの語：新＋千歳空港
-          cur.text += s; cur.needStem = false; cur.ok = strong; cur.kata = kata; return;
+          cur.text += s; cur.needStem = false; cur.ok = strong; cur.kata = kata; cur.maybeName = maybeName; return;
         }
         if (cur && strong && cur.kata && kata){                // カタカナの連続：イン＋バウンド → インバウンド
-          cur.text += s; return;
+          cur.text += s; cur.maybeName = cur.maybeName || maybeName; return;
         }
         flush();
-        cur = { text: s, ok: strong, kata: kata, needStem: false };
+        cur = { text: s, ok: strong, kata: kata, needStem: false, maybeName: maybeName };
         return;
       }
 
@@ -810,7 +835,7 @@
       "   if(err||!t){postMessage({type:'failed'});return;} tk=t; postMessage({type:'ready'});});" +
       " }catch(x){postMessage({type:'failed'});}}" +
       " else if(m.type==='tokenize'&&tk){var out=m.texts.map(function(t){" +
-      "  return tk.tokenize(t).map(function(o){return {surface_form:o.surface_form,pos:o.pos,pos_detail_1:o.pos_detail_1};});});" +
+      "  return tk.tokenize(t).map(function(o){return {surface_form:o.surface_form,pos:o.pos,pos_detail_1:o.pos_detail_1,pos_detail_2:o.pos_detail_2,word_type:o.word_type};});});" +
       "  postMessage({type:'tokens',texts:m.texts,result:out});}" +
       "};";
 
@@ -1145,6 +1170,17 @@
     return best ? state.categoryColorMap[best] : null;
   }
 
+  // 質問文の中の単語に印をつける（異体字「﨑」などを置き換えて抽出した単語も、元の文字のまま印をつける）
+  function markWord(question, word){
+    var norm = normalizeVariants(question), out = "", pos = 0, i;
+    if (!word) return escapeHtml(question);
+    while ((i = norm.indexOf(word, pos)) !== -1){
+      out += escapeHtml(question.slice(pos, i)) + "<mark>" + escapeHtml(question.slice(i, i + word.length)) + "</mark>";
+      pos = i + word.length;
+    }
+    return out + escapeHtml(question.slice(pos));
+  }
+
   // ---------- キーワードのポップアップ ----------
   function openKeywordPopup(word){
     var items = questionsForWord(word);
@@ -1160,7 +1196,7 @@
     var w = escapeHtml(word);
     els.kwBody.classList.remove("kw-single");
     els.kwBody.innerHTML = items.map(function(q, i){
-      var text = escapeHtml(q.question).split(w).join("<mark>" + w + "</mark>");
+      var text = markWord(q.question, word);
       var meta = q.category ? '<div class="qmeta">' + escapeHtml(q.category) + '</div>' : "";
       return '<div class="kw-item" data-idx="' + i + '">' + meta + text + '</div>';
     }).join("");
@@ -1214,7 +1250,7 @@
     els.kwTitle.innerHTML = '<button type="button" class="ghost kw-back" id="kwBack">← 一覧に戻る</button>' +
                             '「<span class="kw-word">' + w + '</span>」を含む質問';
     var html = (q.category ? '<div class="qcat">' + escapeHtml(q.category) + '</div><br>' : "") +
-               escapeHtml(q.question).split(w).join("<mark>" + w + "</mark>") +
+               markWord(q.question, state.popupWord) +
                (q.name ? '<span class="qname">（' + escapeHtml(q.name) + '）</span>' : "");
     els.kwBody.style.columnCount = "";
     els.kwCard.style.width = "min(1500px,94vw)";
