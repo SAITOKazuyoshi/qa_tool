@@ -251,6 +251,9 @@
   /* ---- 質問が追加されたときの演出：増えた単語を光らせ、ぽんと大きく見せる ---- */
   .cloud-panel{position:relative;}
   .fx-layer{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:5;}
+  /* 投影モードの更新：前の画面の写しを重ねておき、新しい画面とふわっと入れ替える */
+  .cloud-snap{position:absolute;pointer-events:none;z-index:4;transition:opacity .8s ease;}
+  #cloudCanvas.cloud-fading{transition:opacity .8s ease;}
   .fx-hl{
     position:absolute;border-radius:14px;background:rgba(255,200,0,.5);mix-blend-mode:multiply;
     box-shadow:0 0 22px 6px rgba(255,190,0,.65);
@@ -1008,6 +1011,37 @@
     // キャンバスの大きさ：通常時は幅いっぱい×420px、投影モードでは画面いっぱい
     var canvas = els.cloudCanvas;
     var panel = canvas.parentElement;
+
+    // 投影モードでは文字を太字で描く。太字の書体の読み込み前に描くと別の書体になるため、読み込みを待って描き直す
+    if (inPresentation && document.fonts && document.fonts.check && !document.fonts.check("700 40px 'Zen Kaku Gothic New'")){
+      if (!state.boldFontLoading){
+        state.boldFontLoading = true;
+        document.fonts.load("700 40px 'Zen Kaku Gothic New'", "質問").then(function(){
+          if (state.freq && document.body.classList.contains("presentation")) renderWordCloud(state.freq);
+        }).catch(function(){});
+      }
+    }
+
+    // 投影モードの更新は、前の画面の写しを上に重ねてから描き直し、描き終わったら入れ替える（パッと切り替わらないように）
+    var crossfade = inPresentation && state.cloudDrawn && canvas.width > 1 &&
+                    !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    // 入れ替え待ちの写しが残っていれば、それをそのまま使う（更新直後は簡易抽出→形態素解析の順に2回描き直すため、
+    // 2回目に写し直すと描きかけの新しい画面を写してしまう）
+    var snap = crossfade ? panel.querySelector(".cloud-snap:not(.fading-out)") : null;
+    Array.prototype.forEach.call(panel.querySelectorAll(".cloud-snap"), function(el){ if (el !== snap) el.remove(); });
+    if (crossfade && !snap){
+      snap = document.createElement("canvas");
+      snap.className = "cloud-snap";
+      snap.width = canvas.width; snap.height = canvas.height;
+      try { snap.getContext("2d").drawImage(canvas, 0, 0); } catch (e){ snap = null; }
+      if (snap){
+        snap.style.cssText = "left:" + canvas.offsetLeft + "px;top:" + canvas.offsetTop + "px;width:" +
+                             canvas.offsetWidth + "px;height:" + canvas.offsetHeight + "px;opacity:1;";
+        panel.appendChild(snap);
+      }
+    }
+    canvas.classList.remove("cloud-fading");
+    canvas.style.opacity = snap ? "0" : "";
     // 前回のサイズが残っていると親パネルの幅まで押し広げてしまうため、測る前にいったんリセットする
     canvas.style.width = "";
     canvas.style.height = "";
@@ -1041,6 +1075,8 @@
     var fxLayer = getFxLayer(canvas); fxLayer.innerHTML = "";
 
     if (!list.length){
+      if (snap){ snap.remove(); }
+      canvas.style.opacity = "";
       var ctx = canvas.getContext("2d");
       ctx.clearRect(0,0,canvas.width,canvas.height);
       ctx.fillStyle = "#565f5b";
@@ -1065,10 +1101,27 @@
     }
 
     var gridSz = inPresentation ? Math.max(6, Math.round(7 * scale)) : Math.round(canvas.width / 90);
+    // 描き終わったら：新しい画面をふわっと出し、前の画面の写しを消す
+    if (snap){
+      canvas.addEventListener("wordcloudstop", function(){
+        if (fxToken !== state.cloudToken) return;
+        canvas.classList.add("cloud-fading");
+        snap.classList.add("fading-out");
+        void canvas.offsetWidth;                              // 変化の起点を確定させてから、ふわっと入れ替える
+        canvas.style.opacity = "1"; snap.style.opacity = "0";
+        setTimeout(function(){
+          snap.remove();
+          if (fxToken === state.cloudToken){ canvas.classList.remove("cloud-fading"); canvas.style.opacity = ""; }   // その後また描き直していたら触らない
+        }, 900);
+      }, { once: true });
+    }
+    state.cloudDrawn = true;
+
     if (fxWords && fxWords.length){
       canvas.addEventListener("wordcloudstop", function(){
         if (fxToken !== state.cloudToken) return;           // 途中で描き直された場合は何もしない
-        setTimeout(function(){ playChangeEffects(canvas, fxWords, gridSz, fxToken, withPop); }, 60);
+        // 入れ替えの最中は単語の位置が見えないので、入れ替えが終わってから演出する
+        setTimeout(function(){ playChangeEffects(canvas, fxWords, gridSz, fxToken, withPop); }, snap ? 820 : 60);
       }, { once: true });
     }
 
@@ -1081,12 +1134,13 @@
         return base * fitScale;
       },
       fontFamily: "'Zen Kaku Gothic New', sans-serif",
+      fontWeight: inPresentation ? "700" : "normal",       // 投影モードは太字（会場の後ろからでも読みやすく）
       shape: inPresentation ? "square" : "circle",
       shrinkToFit: true,
       color: function(word, weight){
         if (hasCategoryColors){
           var c = wordCategoryColor(word);
-          if (c) return c;
+          if (c) return inPresentation ? darkenColor(c, 0.18) : c;   // 投影モードは少し濃くして、明るい会場でもくっきり
         }
         // カテゴリ未指定、またはカテゴリに結びつかない語は頻出度の濃淡で表現
         var ratio = weight / maxCount;
@@ -1101,6 +1155,15 @@
         openKeywordPopup(item[0]);
       }
     });
+  }
+
+  // 色を少し濃くする（#rrggbb、amount は 0〜1）
+  function darkenColor(hex, amount){
+    var m = /^#([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return hex;
+    var n = parseInt(m[1], 16), k = 1 - amount;
+    var r = Math.round(((n >> 16) & 255) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k);
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
   // ---------- 追加された質問の演出 ----------

@@ -29,6 +29,7 @@
 - **事前質問の表示切替**: `state.showPre` が false の間、`runAggregate` で `preQuestionColumn` の値が `preQuestionValue` の行を集計から外す（`seenQuestions` にも入れないので、表示に切り替えたとき新着として光る）。ボタンは `#preToggleBtn`（mode-bar 内）。状態は localStorage（キー `koemiru-showPre:<document.title>`）に保存。
 - **0件時のQR案内**: `body.no-questions`（`runAggregate` で切替）かつ投影モードのとき `#emptyGuide` を表示。見出し行だけのCSV（回答0件）も読み込み成功として扱う（以前は失敗扱いで、自動更新が始まらなかった）。
 - **投影モード**: `body.presentation`。JSがインラインで付ける `display` に勝つため、CSSは `!important` を使う。上部バー（セミナー名を太字・1行、質問数）あり。登壇者は出さない（form-kit.html 用に config の speaker は残す）。文字サイズは画面幅に連動（`--pb-fs`）。投影モード切替ボタンは右下。全画面API（Safari向けにwebkit接頭辞を吸収）。
+- **投影モードの見た目**: 単語は太字（`fontWeight: 700`、Zen Kaku の700を読み込んでから描く）、カテゴリ色を `darkenColor` で18%濃く。更新時は前の画面を `.cloud-snap` に写して重ね、描き終わったら0.8秒でクロスフェード。更新直後は簡易抽出→形態素解析で2回描くため、フェード前の写しは使い回す（写し直すと描きかけを写す）。新着演出は入れ替え後（820ms後）に出す。
 - **単語クリック**: ポップアップで該当質問を表示。一覧の質問クリックで1件表示（`showSingleQuestion`、質問者は `nameColumn` または「名前・氏名」を含む列を（）で表示。Escで一覧へ、自動更新後も `state.popupSingle` で同じ質問を維持）。ワードクラウドの大きさとポップアップの件数は同じ基準（`wordQuestions`）。
 - **色**: 単語の色は、その単語に最も多く紐づく所属の色。
 - **新着演出**: 自動更新で初めて出てきた質問（`seenQuestions` に無い行）に含まれる単語（最大12語）が大きくなり、次の更新まで光る。件数の増減では判定しない（Googleの公開CSVは更新直後に新旧データを交互に返すことがあり、同じ質問が何度も光ったため）。位置は wordcloud2 の `hover` を使って画面全体をなぞって取得する。
