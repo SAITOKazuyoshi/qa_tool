@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>投影モード マニュアル｜コエミル</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#20261f; --ink-soft:#5c6b58; --paper:#fffdf6; --line:#eae6d6;
+    --green:#2f9e64; --green-deep:#1f7a4d; --gold:#f2a93b; --coral:#ef6a52; --violet:#7b6ef6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Zen Kaku Gothic New','Hiragino Sans',sans-serif;line-height:1.8;font-size:15px;}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 16px 64px;}
+  .back{margin:0 0 12px;font-size:13px;}
+  .back a{color:var(--green-deep);font-weight:700;text-decoration:none;}
+  h1{font-size:26px;margin:0 0 4px;display:flex;align-items:center;gap:12px;}
+  h1 svg{width:40px;height:40px;flex-shrink:0;}
+  .lead{color:var(--ink-soft);margin:0 0 24px;font-size:14px;}
+  .toc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 20px;margin-bottom:28px;font-size:14px;}
+  .toc ol{margin:4px 0 0;padding-left:1.4em;}
+  .toc a{color:var(--ink);text-decoration:none;}
+  .toc a:hover{color:var(--green-deep);}
+  section{background:#fff;border:1px solid var(--line);border-left:6px solid var(--green);border-radius:12px;padding:18px 22px;margin-bottom:22px;break-inside:avoid;}
+  section.warn{border-left-color:var(--coral);}
+  section.gold{border-left-color:var(--gold);}
+  h2{font-size:19px;margin:0 0 8px;}
+  h2 .num{display:inline-block;min-width:1.7em;height:1.7em;line-height:1.7em;text-align:center;border-radius:50%;background:var(--green-deep);color:#fff;font-size:14px;margin-right:8px;vertical-align:2px;}
+  h3{font-size:15.5px;margin:16px 0 4px;}
+  ol.steps{margin:6px 0 0;padding-left:1.5em;}
+  ol.steps li{margin-bottom:6px;}
+  ul{margin:6px 0 0;padding-left:1.3em;}
+  .btn{display:inline-block;font-size:.88em;font-weight:700;padding:0 .7em;border:1px solid var(--line);border-radius:999px;background:#fff;white-space:nowrap;}
+  .btn.gold{background:var(--gold);border-color:var(--gold);}
+  .key{display:inline-block;font-size:.85em;font-weight:700;padding:0 .5em;border:1px solid #c9c3ad;border-bottom-width:2px;border-radius:4px;background:#faf8f0;white-space:nowrap;}
+  .note{background:#f6f2e2;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:14px;}
+  .caution{background:#fdecea;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:14px;}
+  .caution b{color:#b0402f;}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin-top:6px;}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{width:32%;color:var(--ink-soft);font-weight:700;}
+  .check{list-style:none;padding-left:0;}
+  .check li{padding-left:1.8em;position:relative;margin-bottom:6px;}
+  .check li::before{content:"";position:absolute;left:0;top:.35em;width:1.05em;height:1.05em;border:1.5px solid var(--ink);border-radius:3px;}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:#f5f2e6;padding:1px 6px;border-radius:4px;word-break:break-all;}
+  .print-btn{font:inherit;font-size:14px;font-weight:700;padding:8px 18px;border-radius:8px;border:0;background:var(--green-deep);color:#fff;cursor:pointer;}
+  @media print{
+    body{background:#fff;font-size:12.5px;line-height:1.65;}
+    .back, .print-row, .toc{display:none;}
+    .wrap{padding:0;max-width:none;}
+    section{border-radius:0;padding:10px 14px;margin-bottom:10px;}
+  }
+  @page{size:A4;margin:14mm;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="back"><a href="./">← コエミルに戻る</a></p>
+  <h1>
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="28" fill="#ffffff" stroke="#1f7a4d" stroke-width="4"/>
+      <circle cx="22" cy="26" r="8" fill="#2f9e64"/><circle cx="40" cy="20" r="10" fill="#f2a93b"/>
+      <circle cx="46" cy="38" r="7" fill="#ef6a52"/><circle cx="24" cy="42" r="6" fill="#7b6ef6"/>
+    </svg>
+    投影モード 操作マニュアル
+  </h1>
+  <p class="lead">セミナー当日に、コエミルを会場のスクリーン（サブスクリーン）に映して運用するための手順です。投影用パソコンを操作するスタッフ向けです。</p>
+  <p class="print-row"><button class="print-btn" type="button" onclick="window.print()">このマニュアルを印刷する</button></p>
+
+  <nav class="toc">
+    <b>目次</b>
+    <ol>
+      <li><a href="#prep">前日までの準備</a></li>
+      <li><a href="#start">当日：投影を始める</a></li>
+      <li><a href="#screen">画面の見方</a></li>
+      <li><a href="#lecture">講演中</a></li>
+      <li><a href="#talk">講師との対談：事前質問を表示する</a></li>
+      <li><a href="#pick">質問を取り上げる（1件だけ大きく表示）</a></li>
+      <li><a href="#end">終わり方と後片付け</a></li>
+      <li><a href="#trouble">困ったとき</a></li>
+      <li><a href="#check">当日のチェックリスト</a></li>
+    </ol>
+  </nav>
+
+  <section id="prep">
+    <h2><span class="num">1</span>前日までの準備</h2>
+    <h3>設定（config.json）を確認する</h3>
+    <p>設定はGitHubの <code>config.json</code> で行います。次の項目がその回のセミナーに合っているか確認してください。</p>
+    <table>
+      <tr><th>eventTitle</th><td>講演タイトル。投影画面の上部に表示されます。</td></tr>
+      <tr><th>csvUrl</th><td>質問が集まるスプレッドシートの公開CSVのURL（<code>/pub?output=csv</code> の形）。</td></tr>
+      <tr><th>formUrl</th><td>質問フォームの回答用URL。質問が0件のときに出るQRコードに使います。</td></tr>
+      <tr><th>availableFrom / availableUntil</th><td>公開期間。当日が期間内に入っているか確認します。期間外だと「公開前です」「公開期間は終了しました」と表示されます。</td></tr>
+      <tr><th>refreshIntervalMs</th><td>自動更新の間隔。本番は <code>30000</code>（30秒）以上がおすすめです。</td></tr>
+      <tr><th>showPreQuestions</th><td><code>false</code> にしておくと、講演中は事前質問を隠しておけます。</td></tr>
+    </table>
+    <h3>配布物を用意する</h3>
+    <p>コエミルの画面の「フォーム素材づくり」から、QRコード案内のスライドと紙の質問用紙（A4）を作れます。紙の質問用紙は、スマホを使わない方向けに会場で配ります。</p>
+    <h3>リハーサルをする</h3>
+    <p>本番で使うパソコン・ブラウザ（<b>Google Chrome</b> をおすすめします）で、下の「2. 当日：投影を始める」を一度通しておきます。</p>
+    <div class="caution"><b>リハーサルのあと、</b>右上（投影中は右下）のボタンが「事前質問：非表示中」に戻っているか必ず確認してください。「表示中」のままにすると、当日もそのまま始まります。</div>
+  </section>
+
+  <section id="start">
+    <h2><span class="num">2</span>当日：投影を始める</h2>
+    <ol class="steps">
+      <li>投影用パソコンで Chrome を開き、<code>https://koemiru.228.jp</code> を開きます。</li>
+      <li>最新の状態にするため、強制再読み込みをします（Mac：<span class="key">⌘</span>＋<span class="key">Shift</span>＋<span class="key">R</span>、Windows：<span class="key">Ctrl</span>＋<span class="key">Shift</span>＋<span class="key">R</span>）。</li>
+      <li>画面上部に講演タイトルが出ていること、「自動更新」にチェックが入っていることを確認します。</li>
+      <li>右上のボタンが <span class="btn">事前質問：非表示中</span> になっていることを確認します。</li>
+      <li>Chrome のウィンドウを、会場のスクリーン（サブスクリーン）側の画面に移動します。</li>
+      <li>右上の <span class="btn">投影モードで表示</span> を押します。画面いっぱいの表示（全画面）に切り替わります。</li>
+    </ol>
+    <div class="note">開演前から映しておけます。質問がまだ1件もないあいだは、「スマホで読み取って質問を送信」とQRコードが大きく表示されます。最初の質問が届くと、自動でワードクラウドに切り替わります。</div>
+  </section>
+
+  <section id="screen">
+    <h2><span class="num">3</span>画面の見方</h2>
+    <table>
+      <tr><th>上部のバー</th><td>左に講演タイトル、右に質問の件数（「質問 ○件」）。</td></tr>
+      <tr><th>ワードクラウド</th><td>質問によく出てくる言葉ほど大きく表示されます。色はカテゴリ（例：地方空港・釧路、貨物・物流など）ごとに分かれます。</td></tr>
+      <tr><th>光っている言葉</th><td>新しく届いた質問に含まれる言葉です。次の更新まで光り続けます。</td></tr>
+      <tr><th>右下の2つのボタン</th><td><span class="btn">事前質問：非表示中／表示中</span> と <span class="btn">編集画面に戻る</span>。投影中は目立たないよう薄く表示され、マウスを近づけるとはっきり出ます。</td></tr>
+    </table>
+  </section>
+
+  <section id="lecture">
+    <h2><span class="num">4</span>講演中</h2>
+    <ul>
+      <li>操作は不要です。30秒ごとに新しい質問を確認し、届いていればワードクラウドが自動で更新されます。</li>
+      <li>会場・Zoom から届いた質問だけが表示されます。事前質問は、まだ件数にも入りません。</li>
+      <li>紙の質問用紙で受け取った質問は、スタッフがGoogleフォームに入力すると反映されます。</li>
+    </ul>
+    <div class="note">フォームから送ってから画面に出るまで、<b>数分かかることがあります</b>（Google側の反映待ち）。すぐに出なくても故障ではありません。</div>
+  </section>
+
+  <section id="talk" class="gold">
+    <h2><span class="num">5</span>講師との対談：事前質問を表示する</h2>
+    <ol class="steps">
+      <li>対談に入ったら、右下の <span class="btn">事前質問：非表示中</span> を押します。</li>
+      <li>ボタンが <span class="btn gold">事前質問：表示中</span>（黄色）に変わり、事前質問がワードクラウドに加わります。事前質問の言葉が光り、件数も増えます。</li>
+      <li>もう一度押すと、事前質問をまた隠せます。</li>
+    </ol>
+    <div class="note">この切り替えはブラウザに記憶されます。途中でページを開き直しても、元に戻りません。</div>
+  </section>
+
+  <section id="pick">
+    <h2><span class="num">6</span>質問を取り上げる（1件だけ大きく表示）</h2>
+    <ol class="steps">
+      <li>ワードクラウドの言葉をクリックすると、その言葉を含む質問の一覧が出ます。</li>
+      <li>一覧の中から取り上げたい質問をクリックすると、その質問だけが大きく表示されます。質問者の所属・お名前が入力されていれば、質問のあとに（　）で表示されます。</li>
+      <li>左上の <span class="btn">← 一覧に戻る</span> で一覧に戻ります。</li>
+      <li>表示の外側（暗くなっている部分）をクリックすると閉じて、ワードクラウドに戻ります。</li>
+    </ol>
+    <div class="caution"><b>投影中は Esc キーを押さないでください。</b>全画面表示が解除され、投影モードも終わってしまいます。戻るときは、マウスで「← 一覧に戻る」や外側をクリックしてください。もし解除されたら、もう一度「投影モードで表示」を押せば元に戻ります。</div>
+    <div class="note">1件を大きく表示している間に新しい質問が届いても、表示中の質問はそのまま変わりません。</div>
+  </section>
+
+  <section id="end">
+    <h2><span class="num">7</span>終わり方と後片付け</h2>
+    <ol class="steps">
+      <li>右下の <span class="btn">編集画面に戻る</span> を押すと、投影モードが終わります。</li>
+      <li>セミナー後は、Googleスプレッドシートの「ウェブに公開」を停止してください。質問データが外から見られなくなります。</li>
+      <li>必要に応じて、<code>config.json</code> の <code>availableUntil</code>（公開終了日時）を設定します。期間を過ぎると、コエミルのページは「公開期間は終了しました」と表示されます。</li>
+    </ol>
+  </section>
+
+  <section id="trouble" class="warn">
+    <h2><span class="num">8</span>困ったとき</h2>
+    <table>
+      <tr><th>質問を送ったのに画面に出ない</th><td>Google側の反映に数分かかります。少し待ってください。長く出ない場合は、スプレッドシートに質問が入っているか確認します。</td></tr>
+      <tr><th>件数が一瞬減って、また戻った</th><td>Google側が更新直後に古いデータを返すことがあるためです。数分で落ち着きます。</td></tr>
+      <tr><th>画面が古い・変更が反映されていない</th><td>強制再読み込み（Mac：<span class="key">⌘</span>＋<span class="key">Shift</span>＋<span class="key">R</span>）をしてください。</td></tr>
+      <tr><th>全画面が解除された</th><td>もう一度「投影モードで表示」を押します。</td></tr>
+      <tr><th>「公開前です」「公開期間は終了しました」と出る</th><td><code>config.json</code> の <code>availableFrom</code> / <code>availableUntil</code> と、パソコンの時計を確認します。</td></tr>
+      <tr><th>質問が0件なのにQRコードが出ない</th><td><code>config.json</code> の <code>formUrl</code> が入っているか確認します。</td></tr>
+      <tr><th>事前質問がはじめから表示されている</th><td>右下のボタンを押して「事前質問：非表示中」にします。</td></tr>
+      <tr><th>Safari でうまく動かない</th><td>Google Chrome を使ってください。</td></tr>
+    </table>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">9</span>当日のチェックリスト</h2>
+    <ul class="check">
+      <li>投影用パソコンで Chrome を開き、<code>https://koemiru.228.jp</code> を強制再読み込みした</li>
+      <li>講演タイトルが正しく表示されている</li>
+      <li>「自動更新」にチェックが入っている</li>
+      <li>ボタンが「事前質問：非表示中」になっている</li>
+      <li>ウィンドウをサブスクリーン側に移動し、「投影モードで表示」を押した</li>
+      <li>（開演前）QRコードの案内が映っている。スマホで読み取ってフォームが開く</li>
+      <li>紙の質問用紙を配布し、回収と入力の担当を決めた</li>
+      <li>（対談前）事前質問のボタンを押す担当とタイミングを決めた</li>
+      <li>（終了後）スプレッドシートの「ウェブに公開」を停止した</li>
+    </ul>
+  </section>
+</div>
+</body>
+</html>
