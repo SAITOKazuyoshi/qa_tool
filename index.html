@@ -302,9 +302,10 @@
   .fx-hl{
     position:absolute;border-radius:14px;background:rgba(255,200,0,.5);mix-blend-mode:multiply;
     box-shadow:0 0 22px 6px rgba(255,190,0,.65);
-    animation:fxGlow 1.8s ease-in-out infinite alternate;      /* 次の更新まで光り続ける */
+    animation:fxGlow 1.8s ease-in-out infinite alternate;      /* 光る時間（既定60秒）か次の更新まで光り続ける */
   }
   @keyframes fxGlow{0%{opacity:.45}100%{opacity:1}}
+  .fx-hl.fx-out{animation:none;opacity:0;transition:opacity 1.5s ease;}   /* 光る時間が過ぎたら、ゆっくり消える */
   .fx-pop{position:absolute;mix-blend-mode:multiply;transform-origin:center;animation:fxPop .9s cubic-bezier(.2,.8,.3,1.3) 1 forwards;}
   @keyframes fxPop{0%{transform:scale(1);opacity:1}35%{transform:scale(1.5)}100%{transform:scale(1);opacity:0}}
   @media (prefers-reduced-motion:reduce){ .fx-pop{display:none;} .fx-hl{animation:none;} }
@@ -577,6 +578,7 @@
     questions: [],      // {question, category}
     refreshTimer: null,
     refreshing: false,   // 自動更新の通信中フラグ（重複実行を防ぐ）
+    glowMs: 60000,       // 新着の言葉が光り続ける時間（config.json の highlightSeconds。0なら次の更新まで）
     closed: false,       // 公開期間外（config.json の enabled / availableFrom / availableUntil）
     nameColumn: "",      // 質問者（任意項目）の列（config.json の nameColumn。無ければ「名前」「氏名」を含む列を自動で使う）
     popupSingle: null,   // ポップアップで1件だけ表示している質問（自動更新のあとも同じ質問を表示し続けるため）
@@ -1145,12 +1147,22 @@
     var scale = inPresentation ? Math.max(1, Math.min(cw / 900, ch / 460)) : 1;
 
     if (typeof WordCloud.stop === "function"){ WordCloud.stop(); }
-    // 自動更新で増えた単語：ぽんと大きくなる動きは1回だけ、光る囲みは次の更新まで残す
-    // （リサイズ・辞書の切替などの再描画では、同じ単語に光る囲みだけ付け直す）
+    // 自動更新で増えた単語：ぽんと大きくなる動きは1回だけ、光る囲みは「次の更新」か「光る時間（既定60秒）」の早いほうまで残す
+    // （リサイズ・辞書の切替などの再描画では、光る時間内なら同じ単語に光る囲みだけ付け直す）
     var fxWords = state.fxWords, withPop = true;
     state.fxWords = null;
-    if (fxWords){ state.glowWords = fxWords.slice(0, 12); }
-    else { fxWords = state.glowWords; withPop = false; }
+    if (fxWords){
+      state.glowWords = fxWords.slice(0, 12);
+      clearTimeout(state.glowTimer);
+      state.glowUntil = (fxWords.length && isFinite(state.glowMs)) ? Date.now() + state.glowMs : Infinity;
+      if (fxWords.length && isFinite(state.glowMs)){
+        // 演出は入れ替えの後（最大約0.8秒後）に始まるので、その分だけ遅らせて消す
+        state.glowTimer = setTimeout(endGlow, state.glowMs + 900);
+      }
+    } else {
+      fxWords = (Date.now() < (state.glowUntil || 0)) ? state.glowWords : null;
+      withPop = false;
+    }
     var fxToken = state.cloudToken = (state.cloudToken || 0) + 1;
     var fxLayer = getFxLayer(canvas); fxLayer.innerHTML = "";
 
@@ -1244,6 +1256,16 @@
     var n = parseInt(m[1], 16), k = 1 - amount;
     var r = Math.round(((n >> 16) & 255) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k);
     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  // 光る時間が過ぎたら、光る囲みをゆっくり消す（データに変化がない更新が続いても、光りっぱなしにしない）
+  function endGlow(){
+    state.glowWords = null;
+    state.glowUntil = 0;
+    Array.prototype.forEach.call(document.querySelectorAll(".fx-hl"), function(el){
+      el.classList.add("fx-out");
+      setTimeout(function(){ el.remove(); }, 1600);
+    });
   }
 
   // ---------- 追加された質問の演出 ----------
@@ -1770,7 +1792,9 @@
 
   function applyConfig(cfg){
     if (cfg){ setEventInfo(cfg.eventTitle, cfg.speaker); setGuideQr(cfg.formUrl); setupPreQuestions(cfg);
-              if (typeof cfg.nameColumn === "string") state.nameColumn = cfg.nameColumn.trim(); }
+              if (typeof cfg.nameColumn === "string") state.nameColumn = cfg.nameColumn.trim();
+              var hs = parseFloat(cfg.highlightSeconds);
+              if (!isNaN(hs) && hs >= 0){ state.glowMs = hs === 0 ? Infinity : hs * 1000; } }
     // データソース固定モード：lockDataSource が true のとき、URL入力・CSVアップロードを画面から隠し、
     // config.json の csvUrl だけを使う（誤操作で別のデータに切り替わらないようにするための機能）。
     if (cfg && (cfg.lockDataSource === true || cfg.lockDataSource === "true")){

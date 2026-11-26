@@ -21,7 +21,7 @@
 ## config.json の項目
 `csvUrl`（`/pub?...output=csv` 形式。`/pubhtml` は不可）/ `lockDataSource`（画面のURL入力を隠す）/
 `questionColumn` / `categoryColumn`（現在は「所属」）/ `excludeWords` / `autoRefresh` /
-`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `nameColumn`（質問者。省略時は自動判定）/ `preQuestionColumn` / `preQuestionValue` / `showPreQuestions`（事前質問の表示切替）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
+`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `nameColumn`（質問者。省略時は自動判定）/ `highlightSeconds`（新着の光る秒数。既定60、0で次の変化まで）/ `preQuestionColumn` / `preQuestionValue` / `showPreQuestions`（事前質問の表示切替）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
 `morphology`（`true` のときだけ形態素解析を使う。初期は無効＝簡易抽出）
 
 ## 主な機能と実装の要点
@@ -34,7 +34,7 @@
 - **開催レポート**: `#reportBtn` → `buildReport` が `state.rows` 全件（非表示中の事前質問も含む）から集計し `#reportView` に描画、`body.reporting` で他を隠す。印刷CSSあり。ワードクラウドは作成時点のキャンバス画像。
 - **単語クリック**: ポップアップで該当質問を表示。一覧の質問クリックで1件表示（`showSingleQuestion`、質問者は `nameColumn` または「名前・氏名」を含む列を（）で表示。Escで一覧へ、自動更新後も `state.popupSingle` で同じ質問を維持）。ワードクラウドの大きさとポップアップの件数は同じ基準（`wordQuestions`）。
 - **色**: 単語の色は、その単語に最も多く紐づく所属の色。
-- **新着演出**: 自動更新で初めて出てきた質問（`seenQuestions` に無い行）に含まれる単語（最大12語）が大きくなり、次の更新まで光る。件数の増減では判定しない（Googleの公開CSVは更新直後に新旧データを交互に返すことがあり、同じ質問が何度も光ったため）。位置は wordcloud2 の `hover` を使って画面全体をなぞって取得する。
+- **新着演出**: 自動更新で初めて出てきた質問（`seenQuestions` に無い行）に含まれる単語（最大12語）が大きくなり、`highlightSeconds`（既定60秒、0で無期限）か次のデータ変化の早いほうまで光る（`state.glowUntil` / `endGlow` でフェードアウト）。件数の増減では判定しない（Googleの公開CSVは更新直後に新旧データを交互に返すことがあり、同じ質問が何度も光ったため）。位置は wordcloud2 の `hover` を使って画面全体をなぞって取得する。
 - **単語抽出**: 既定は簡易抽出（漢字・カタカナ・英数字の連続）。`morphology: true` のとき、Kuromoji を **Web Worker** で動かす。辞書の展開をメイン処理でやると画面全体が固まるため、必ず別スレッドにすること。辞書の準備前は簡易抽出で先に表示し、準備後に自動で切り替える。60秒で打ち切り。
 - **人名を抽出しない**: 解析前に `normalizeVariants` で異体字（﨑→崎・髙→高など、CJK互換漢字はNFKC）を1文字ずつ置き換える（IPADICは「﨑」を知らず「山」「﨑」＋「さん」→「﨑さん」になっていた）。形態素解析では `固有名詞,人名` を捨て、敬称（`接尾,人名`：さん・様・氏など）の前の固有名詞・未知語も捨てる（「社長さん」「利用者様」は残す）。簡易抽出では敬称直前の漢字列を捨てる。ポップアップの印付けは `markWord` で置き換え後の文字位置に合わせる。
 
