@@ -1,0 +1,3 @@
+# 検索よけ。HTMLは各ページの noindex で検索結果に出さない（ページを読めないと noindex が伝わらないため、HTMLはブロックしない）
+User-agent: *
+Disallow: /config.json
