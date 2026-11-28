@@ -17,6 +17,7 @@
 - `form-kit.html` … Googleフォーム用のヘッダー画像（1600×400）とQRコード案内スライド（1920×1080）をcanvasで作ってPNG保存するページ。紙の質問用紙（A4に1枚／2枚分）もHTML＋印刷用CSSで作る（印刷時は `#paperSection` の用紙以外を `display:none`。visibility だと隠れた部分が場所を取り4ページになった）。config.json の eventTitle / speaker を読む。QRは qrcode-generator 1.4.4（CDN）。
 - `manual.html` … 投影モードの当日運用マニュアル（静的HTML、印刷可）。index.html の上部からリンク。機能を変えたら合わせて更新する。
 - 検索よけ: 全HTMLに `<meta name="robots" content="noindex, nofollow, noarchive">`。`robots.txt` は `/config.json` だけ拒否（HTMLを拒否すると noindex が読まれないため）。HTMLを足したら meta も付ける。
+- favicon: `favicon.svg`（`koemiru-mark.svg` からメタデータを除いたもの）・`favicon-32.png`・`apple-touch-icon.png`（180px、白背景）。全HTMLの head でリンク。
 - 外部ライブラリ（CDN: cdn.jsdelivr.net、バージョン固定）: PapaParse 5.4.1 / wordcloud2.js 1.2.2 / Kuromoji.js 0.1.2（辞書は約18MB）/ qrcode-generator 1.4.4（index.html の0件時QRと form-kit.html）。
 
 ## config.json の項目
