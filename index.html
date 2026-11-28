@@ -1057,7 +1057,8 @@
 
       if (cat){ catCount[cat] = (catCount[cat] || 0) + 1; }
       // 取り上げ済みをワードクラウドから外す設定のときは、言葉を数えない
-      if (state.excludeDone && state.done[key]) return;
+      // （ただし1件表示中の質問は、表示を続けるために閉じるまで数える）
+      if (state.excludeDone && state.done[key] && !(state.popupSingle && key === questionKey(state.popupSingle))) return;
 
       var kws = extractKeywords(q);
       var seen = Object.create(null);
@@ -1387,7 +1388,8 @@
       var da = isDone(a) ? 1 : 0, db = isDone(b) ? 1 : 0;
       return da !== db ? da - db : b.order - a.order;
     });
-    if (state.hideDone) items = items.filter(function(q){ return !isDone(q); });
+    // 隠す設定でも、1件表示中の質問は（自動更新で作り直したときに表示を続けるため）残す
+    if (state.hideDone) items = items.filter(function(q){ return !isDone(q) || q.question === state.popupSingle; });
 
     var color = wordCategoryColor(word) || "#2f9e64";
     els.kwCard.style.borderTopColor = color;
@@ -1484,15 +1486,26 @@
     }
     els.kwBody.scrollTop = 0;
   }
+  // 取り上げ済みをワードクラウドから外す設定のとき、1件表示を抜けたら集計し直す
+  function reaggregateIfDoneChanged(){
+    if (!state.doneChanged) return false;
+    state.doneChanged = false;
+    if (!state.excludeDone || !state.rows || !state.rows.length) return false;
+    runAggregate();   // 開いている一覧（popupWord）は runAggregate の中で開き直される
+    return true;
+  }
   function backToList(){
     state.popupSingle = null;
+    if (reaggregateIfDoneChanged()) return;
     if (state.popupWord){ openKeywordPopup(state.popupWord); }
   }
 
   function closeKeywordPopup(){
     els.kwModal.classList.remove("show");
     state.popupWord = null;
+    var wasSingle = !!state.popupSingle;
     state.popupSingle = null;
+    if (wasSingle || state.doneChanged) reaggregateIfDoneChanged();
   }
 
   // 一覧の質問クリック・「一覧に戻る」ボタン（背景クリックで閉じる処理より先に受け取る）
@@ -1505,12 +1518,19 @@
       var q = state.popupItems && state.popupItems[state.popupSingleIdx];
       if (!q) return;
       setDone(q.key, !isDone(q));
-      if (state.excludeDone){ runAggregate(); }   // ワードクラウドから外す設定なら集計し直す
-      else { showSingleQuestion(state.popupSingleIdx); renderQuestionList(state.listFilter || null); }
+      state.doneChanged = true;
+      showSingleQuestion(state.popupSingleIdx); renderQuestionList(state.listFilter || null);
       return;
     }
     var item = e.target.closest && e.target.closest(".kw-item[data-idx]");
-    if (item && els.kwBody.contains(item)){ e.stopPropagation(); showSingleQuestion(parseInt(item.getAttribute("data-idx"), 10)); }
+    if (item && els.kwBody.contains(item)){
+      e.stopPropagation();
+      // 一覧から質問を開いたら、取り上げ済みにする（間違えたときは1件表示のボタンで取り消せる）
+      var picked = state.popupItems && state.popupItems[parseInt(item.getAttribute("data-idx"), 10)];
+      if (picked && !isDone(picked)){ setDone(picked.key, true); state.doneChanged = true; }
+      showSingleQuestion(parseInt(item.getAttribute("data-idx"), 10));
+      renderQuestionList(state.listFilter || null);
+    }
   });
 
   // 画面のどこをクリックしても閉じる（投影中にマウス操作だけで閉じられるように）

@@ -33,7 +33,7 @@
 - **自動更新の状態**: `updateRefreshStatus` が `#pbStatus`（上部バー右）に表示。`state.lastCheckAt` は取得成功時刻（変化の有無を問わず）。間隔×3＋10秒を超えたら黄、失敗・自動更新オフは赤。10秒ごとに再評価。
 - **開催レポート**: `#reportBtn` → `buildReport` が `state.rows` 全件（非表示中の事前質問も含む）から集計し `#reportView` に描画、`body.reporting` で他を隠す。印刷CSSあり。ワードクラウドは作成時点のキャンバス画像。
 - **単語クリック**: ポップアップで該当質問を表示。一覧の質問クリックで1件表示（`showSingleQuestion`、質問者は `nameColumn` または「名前・氏名」を含む列を（）で表示。Escで一覧へ、自動更新後も `state.popupSingle` で同じ質問を維持）。一覧は未取り上げを新しい順（`order` 降順）→取り上げ済み。ワードクラウドの大きさとポップアップの件数は同じ基準（`wordQuestions`）。
-- **取り上げ済み**: 1件表示の `#kwDone` で切替。`state.done`（キーは `questionKey`＝NFKC＋空白まとめ）を localStorage `koemiru-done:<document.title>` に保存。config の `hideDoneQuestions`（一覧から隠す）/ `excludeDoneFromCloud`（集計から外す。切替時に `runAggregate`）。解除は `#doneResetBtn`（投影モードでは非表示）。
+- **取り上げ済み**: 一覧の質問クリック（1件表示を開く）で自動的に付く。1件表示の `#kwDone` で取り消し・付け直し。`excludeDoneFromCloud` のときは1件表示中の質問を集計に残し、一覧に戻る・閉じるときに `reaggregateIfDoneChanged` で集計し直す（すぐ集計すると表示中の質問が消えるため）。`state.done`（キーは `questionKey`＝NFKC＋空白まとめ）を localStorage `koemiru-done:<document.title>` に保存。config の `hideDoneQuestions`（一覧から隠す）/ `excludeDoneFromCloud`（集計から外す。切替時に `runAggregate`）。解除は `#doneResetBtn`（投影モードでは非表示）。
 - **同文まとめ**: `runAggregate` で同じ `questionKey` の行は1件にまとめ、質問者名を「、」で連結。件数・言葉は1回だけ数える（開催レポートは全行のまま）。
 - **色**: 単語の色は、その単語に最も多く紐づく所属の色。
 - **新着演出**: 自動更新で初めて出てきた質問（`seenQuestions` に無い行）に含まれる単語（最大12語）が大きくなり、`highlightSeconds`（既定60秒、0で無期限）か次のデータ変化の早いほうまで光る（`state.glowUntil` / `endGlow` でフェードアウト）。件数の増減では判定しない（Googleの公開CSVは更新直後に新旧データを交互に返すことがあり、同じ質問が何度も光ったため）。位置は wordcloud2 の `hover` を使って画面全体をなぞって取得する。
