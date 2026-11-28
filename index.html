@@ -606,7 +606,9 @@
     sourceLocked: false,  // config.json の lockDataSource が true（画面からデータソースを変更できない）
     lastCsvText: null,   // 前回取得したCSVの中身（自動更新で変化を検知するために使う）
     seenQuestions: null, // これまでに表示した質問（行の内容）の記録。新着演出の判定に使う
-    done: Object.create(null), // 取り上げ済みの質問（質問文をキーに、このブラウザに保存）
+    done: Object.create(null), // 取り上げ済みの質問（質問文をキー。GitHub Pages 版はこのブラウザに、サーバ版はサーバに保存）
+    server: false,       // サーバ版（api/config.php が使える）か
+    localEditAt: 0,      // この端末で最後に取り上げ済み・事前質問を変えた時刻（それより前に問い合わせた共有状態は使わない）
     hideDone: false,     // ポップアップの一覧から取り上げ済みを隠すか（config.json の hideDoneQuestions）
     excludeDone: false,  // 取り上げ済みの質問をワードクラウドの集計から外すか（excludeDoneFromCloud）
     dataMode: null       // "url" または "file"
@@ -1879,16 +1881,19 @@
     return "";
   }
 
-  // ---------- 取り上げ済みの管理（このブラウザに保存。スプレッドシートには書き込まない）----------
+  // ---------- 取り上げ済みの管理（GitHub Pages 版はこのブラウザに、サーバ版はサーバに保存。スプレッドシートには書き込まない）----------
   function questionKey(q){ return String(q).normalize("NFKC").replace(/\s+/g, " ").trim(); }
   function isDone(q){ return !!(q && state.done[q.key]); }
   function doneStoreKey(){ return "koemiru-done:" + (document.title || ""); }
   function saveDone(){
-    try { localStorage.setItem(doneStoreKey(), JSON.stringify(Object.keys(state.done))); } catch (e){}
+    if (!state.server){
+      try { localStorage.setItem(doneStoreKey(), JSON.stringify(Object.keys(state.done))); } catch (e){}
+    }
     updateDoneReset();
   }
   function loadDone(){
     state.done = Object.create(null);
+    if (state.server){ updateDoneReset(); return; }   // サーバ版は共有状態の取得（fetchSharedState）で入る
     try {
       var arr = JSON.parse(localStorage.getItem(doneStoreKey()) || "[]");
       if (Array.isArray(arr)) arr.forEach(function(k){ state.done[k] = true; });
@@ -1899,6 +1904,7 @@
     if (!key) return;
     if (on){ state.done[key] = true; } else { delete state.done[key]; }
     saveDone();
+    postSharedState({ action: "done", key: key, on: !!on });
   }
   function updateDoneReset(){
     var n = Object.keys(state.done).length;
@@ -1910,8 +1916,56 @@
     if (!n || !window.confirm("取り上げ済みの印（" + n + "件）をすべて外しますか？\nリハーサルのあと、本番前に使います。")) return;
     state.done = Object.create(null);
     saveDone();
+    postSharedState({ action: "resetDone" });
     if (state.rows && state.rows.length) runAggregate();
   });
+
+  // ---------- サーバ版：取り上げ済み・事前質問の表示を、投影用PCと司会者の端末などで共有する ----------
+  // 数秒おきにサーバへ問い合わせ、ほかの端末での変更を反映する。変更はすぐサーバへ送る。
+  function postSharedState(body){
+    if (!state.server) return;
+    state.localEditAt = Date.now();
+    fetch("api/state.php", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json", "X-Koemiru": "1" }, body: JSON.stringify(body) })
+      .then(function(res){ if (!res.ok) throw new Error("HTTP " + res.status); })
+      .catch(function(err){ showStatus("取り上げ済みなどの保存に失敗しました（" + err.message + "）。ネット接続を確認してください。", "error"); });
+  }
+  function fetchSharedState(){
+    if (!state.server || state.closed) return;
+    var startedAt = Date.now();
+    fetch("api/state.php", { cache: "no-store" })
+      .then(function(res){ if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
+      .then(function(s){
+        if (startedAt < state.localEditAt) return;   // 問い合わせ中にこの端末で変更した：古い状態で上書きしない
+        applySharedState(s);
+      })
+      .catch(function(){ /* 次の問い合わせで再試行する */ });
+  }
+  function applySharedState(s){
+    if (!s || !Array.isArray(s.done)) return;
+    var next = Object.create(null);
+    s.done.forEach(function(k){ next[k] = true; });
+    var doneChanged = Object.keys(next).sort().join("\n") !== Object.keys(state.done).sort().join("\n");
+    var preChanged = state.preCol && typeof s.showPre === "boolean" && s.showPre !== state.showPre;
+    if (doneChanged){ state.done = next; updateDoneReset(); }
+    if (preChanged){ state.showPre = s.showPre; updatePreToggle(); }
+    if (!state.rows || !state.rows.length || !state.aggregated) return;
+    if (preChanged){
+      state.highlightNext = state.showPre;   // 表示に切り替わったときは、事前質問の単語を新着として光らせる
+      runAggregate();                        // 開いている一覧・1件表示は runAggregate の中で開き直される
+      return;
+    }
+    if (!doneChanged) return;
+    renderQuestionList(state.listFilter || null);
+    state.doneChanged = true;
+    if (els.kwModal.classList.contains("show")){
+      // 開いている画面の ✓ やボタンを最新にする（ワードクラウドの描き直しは、閉じたとき・一覧に戻ったとき）
+      if (state.popupSingle){ showSingleQuestion(state.popupSingleIdx); }
+      else if (state.popupWord){ openKeywordPopup(state.popupWord); }
+    } else {
+      reaggregateIfDoneChanged();
+    }
+  }
 
   // ---------- 事前質問の表示切替（講演中は隠し、講師との対談で表示する）----------
   function preStoreKey(){ return "koemiru-showPre:" + (document.title || ""); }
@@ -1924,17 +1978,22 @@
     state.preCol = cfg.preQuestionColumn.trim();
     state.preValue = (typeof cfg.preQuestionValue === "string" && cfg.preQuestionValue.trim()) ? cfg.preQuestionValue.trim() : "事前質問";
     state.showPre = (cfg.showPreQuestions === true || cfg.showPreQuestions === "true");
-    // 当日、ページを開き直しても切替の状態が戻らないよう、このブラウザに覚えておく
-    try {
-      var saved = localStorage.getItem(preStoreKey());
-      if (saved === "1" || saved === "0") state.showPre = (saved === "1");
-    } catch (e){}
+    // 当日、ページを開き直しても切替の状態が戻らないよう、このブラウザに覚えておく（サーバ版はサーバの状態を使う）
+    if (!state.server){
+      try {
+        var saved = localStorage.getItem(preStoreKey());
+        if (saved === "1" || saved === "0") state.showPre = (saved === "1");
+      } catch (e){}
+    } else if (typeof cfg.sharedShowPre === "boolean"){
+      state.showPre = cfg.sharedShowPre;
+    }
     els.preToggleBtn.style.display = "";
     updatePreToggle();
   }
   els.preToggleBtn.addEventListener("click", function(){
     state.showPre = !state.showPre;
-    try { localStorage.setItem(preStoreKey(), state.showPre ? "1" : "0"); } catch (e){}
+    if (state.server){ postSharedState({ action: "showPre", value: state.showPre }); }
+    else { try { localStorage.setItem(preStoreKey(), state.showPre ? "1" : "0"); } catch (e){} }
     updatePreToggle();
     if (!state.rows || !state.rows.length) return;
     state.highlightNext = state.showPre;   // 表示に切り替えたときは、事前質問の単語を新着として光らせる
@@ -1994,7 +2053,29 @@
     }).catch(function(){ /* エラー表示は loadFromUrl 内で行い済み */ });
   }
 
-    fetch("config.json", { cache: "no-store" })
+    // サーバ版（api/config.php が設定を返す）なら、それを使う。GitHub Pages などでは config.json を読む
+    function loadServerConfig(){
+      return fetch("api/config.php", { cache: "no-store" })
+        .then(function(res){
+          var ct = res.headers.get("Content-Type") || "";
+          if (!res.ok || ct.indexOf("json") === -1) return null;   // PHP が動かない場所では、ファイルの中身がそのまま返る
+          return res.json();
+        })
+        .then(function(cfg){
+          if (!cfg || cfg.server !== true) return null;
+          state.server = true;
+          cfg.csvUrl = cfg.dataUrl || "api/questions.php";
+          // 取り上げ済み・事前質問の状態を、表示の前に一度取ってくる
+          return fetch("api/state.php", { cache: "no-store" })
+            .then(function(res){ return res.ok ? res.json() : null; })
+            .catch(function(){ return null; })
+            .then(function(s){ cfg.sharedState = s; if (s && typeof s.showPre === "boolean") cfg.sharedShowPre = s.showPre; return cfg; });
+        })
+        .catch(function(){ return null; });
+    }
+    loadServerConfig().then(function(serverCfg){
+      if (serverCfg) return serverCfg;
+      return fetch("config.json", { cache: "no-store" })
     .then(function(res){
       if (!res.ok) return null;   // config.json が無い → 通常の手動モード
       return res.json().catch(function(){
@@ -2003,7 +2084,8 @@
         return null;
       });
     })
-    .catch(function(){ return null; })
+    .catch(function(){ return null; });
+    })
     .then(function(cfg){
       if (cfg){
         watchAvailability(cfg);
@@ -2019,6 +2101,10 @@
         setTimeout(initTokenizer, 1500);
       }
       applyConfig(cfg);
+      if (state.server){
+        if (cfg.sharedState) applySharedState(cfg.sharedState);
+        setInterval(fetchSharedState, 3000);
+      }
     });
 
 })();
