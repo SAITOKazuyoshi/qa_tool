@@ -26,11 +26,10 @@
 `refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `nameColumn`（質問者。省略時は自動判定）/ `highlightSeconds`（新着の光る秒数。既定60、0で次の変化まで）/ `preQuestionColumn` / `preQuestionValue` / `showPreQuestions`（事前質問の表示切替）/ `hideDoneQuestions` / `excludeDoneFromCloud`（取り上げ済みの扱い）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
 `morphology`（`true` のときだけ形態素解析を使う。初期は無効＝簡易抽出）
 
-## サーバ版（api/ と server/）
-- `api/config.php` が JSON を返せばサーバ版（`state.server = true`）。返さなければ（GitHub Pages では PHP がそのまま返る）従来の `config.json`。
-- サーバ設定は公開フォルダ外（`/usr/local/etc/koemiru/config.json`、`SetEnv KOEMIRU_CONFIG`）。`api/config.php` は `csvUrl` 等を除いて返す。`api/questions.php` がCSVを取り置き（`serverCacheSeconds`、flock で1回だけ取得、失敗時は前回分）。公開期間外は 403。
-- `api/state.php`（SQLite、`/var/db/koemiru`）で取り上げ済み・事前質問の表示を共有。画面は3秒ごとに `fetchSharedState`、変更は `postSharedState`（`X-Koemiru: 1` ヘッダー必須）。問い合わせ中に手元で変えたら古い応答は捨てる（`localEditAt`）。サーバ版では localStorage を使わない。
-- 本番サーバは FreeBSD 15.1 + Apache 2.4 + mod_php（PHP 8.5）。設置手順は `server/README.md`、Apache 設定例は `server/apache-koemiru.conf`。手元に PHP が無いので、画面側は Python の模擬サーバで試験する（PHP 自体はサーバで確認）。
+## サーバ版（別リポジトリ php-koemiru-server、非公開）
+- サーバ版（FreeBSD + Apache + PHP）は `/Users/saito/github/php-koemiru-server`（SAITOKazuyoshi/php-koemiru-server）。`api/*.php` と設置手順はそちら。
+- **画面のファイル（index.html・manual.html・form-kit.html・アイコン類・robots.txt）は両リポジトリで同じ中身にする。** 画面を変えたら、こちらで試験・コミットしたあと、同じファイルを php-koemiru-server にもコピーしてコミット・push する。
+- index.html は `api/config.php` が JSON を返せばサーバ版（`state.server = true`）、返さなければ従来の `config.json`。サーバ版では取り上げ済み・事前質問の表示を `api/state.php` で共有（3秒ごとに `fetchSharedState`、変更は `postSharedState`、`X-Koemiru: 1` ヘッダー、`localEditAt` で古い応答を捨てる）。localStorage は使わない。
 
 ## 主な機能と実装の要点
 - **自動更新**: `refreshIfChanged` がCSV本文を前回と比較し、変化があったときだけ再集計・再描画する。列の選択は保持する。
