@@ -1093,6 +1093,7 @@
     state.questions = questions;
     state.freq = freq;
     state.wordQuestions = wordQuestions;
+    state.fadedSig = fadedSignature();
     state.catCount = catCount;
     state.wordCatCount = wordCatCount;
     state.categoryColorMap = categoryColorMap;
@@ -1248,6 +1249,17 @@
       }, { once: true });
     }
 
+    // 言葉の色：カテゴリの色（投影モードは少し濃く）。カテゴリが無ければ頻出度の濃淡
+    function baseColor(word, weight){
+      if (hasCategoryColors){
+        var c = wordCategoryColor(word);
+        if (c) return inPresentation ? darkenColor(c, 0.18) : c;   // 投影モードは少し濃くして、明るい会場でもくっきり
+      }
+      var ratio = weight / maxCount;
+      if (ratio > 0.66) return "#1f7a4d";
+      if (ratio > 0.33) return "#2f9e64";
+      return "#8fc7a4";
+    }
     WordCloud(canvas, {
       list: list,
       gridSize: gridSz,
@@ -1261,15 +1273,8 @@
       shape: inPresentation ? "square" : "circle",
       shrinkToFit: true,
       color: function(word, weight){
-        if (hasCategoryColors){
-          var c = wordCategoryColor(word);
-          if (c) return inPresentation ? darkenColor(c, 0.18) : c;   // 投影モードは少し濃くして、明るい会場でもくっきり
-        }
-        // カテゴリ未指定、またはカテゴリに結びつかない語は頻出度の濃淡で表現
-        var ratio = weight / maxCount;
-        if (ratio > 0.66) return "#1f7a4d";
-        if (ratio > 0.33) return "#2f9e64";
-        return "#8fc7a4";
+        var c0 = baseColor(word, weight);
+        return isWordAllDone(word) ? lightenColor(c0, 0.72) : c0;   // 質問がすべて取り上げ済みの言葉は薄く
       },
       backgroundColor: "#ffffff",
       rotateRatio: 0,
@@ -1278,6 +1283,27 @@
         openKeywordPopup(item[0]);
       }
     });
+  }
+
+  // 白に近づけて薄くする（amount: 0〜1）
+  function lightenColor(hex, amount){
+    var m = /^#([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return hex;
+    var n = parseInt(m[1], 16);
+    function mix(v){ return Math.round(v + (255 - v) * amount); }
+    var r = mix((n >> 16) & 255), g = mix((n >> 8) & 255), b = mix(n & 255);
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  // その言葉を含む質問がすべて取り上げ済みか（ワードクラウドで薄く表示する）
+  function isWordAllDone(word){
+    var idx = state.wordQuestions && state.wordQuestions[word];
+    if (!idx || !idx.length) return false;
+    for (var i = 0; i < idx.length; i++){ if (!isDone(state.questions[idx[i]])) return false; }
+    return true;
+  }
+  function fadedSignature(){
+    return Object.keys(state.wordQuestions || {}).filter(isWordAllDone).sort().join("\n");
   }
 
   // 色を少し濃くする（#rrggbb、amount は 0〜1）
@@ -1490,7 +1516,9 @@
   function reaggregateIfDoneChanged(){
     if (!state.doneChanged) return false;
     state.doneChanged = false;
-    if (!state.excludeDone || !state.rows || !state.rows.length) return false;
+    if (!state.rows || !state.rows.length) return false;
+    // 集計から外す設定でなければ、薄くする言葉が変わったときだけ描き直す（言葉の配置が毎回変わらないように）
+    if (!state.excludeDone && fadedSignature() === state.fadedSig) return false;
     runAggregate();   // 開いている一覧（popupWord）は runAggregate の中で開き直される
     return true;
   }
