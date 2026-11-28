@@ -12,7 +12,7 @@
   "formUrl": "https://forms.gle/KegSbACHBMaj58pMA",
   "enabled": true,
   "availableFrom": "2026-10-01",
-  "availableUntil": "2026-12-31",
+  "availableUntil": "2026-11-27",
   "preQuestionColumn": "参加方法",
   "preQuestionValue": "事前質問",
   "showPreQuestions": false
