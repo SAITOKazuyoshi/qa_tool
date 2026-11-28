@@ -284,6 +284,7 @@
   .rp-q{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.6;break-inside:avoid;}
   .rp-q .m{font-size:11.5px;color:var(--ink-soft);}
   .rp-q .who{color:var(--ink-soft);}
+  .rp-done{color:var(--green-deep);font-size:12px;}
   .rp-note{font-size:12.5px;color:var(--ink-soft);margin-top:6px;}
   @media print{
     body.reporting{background:#fff;}
@@ -361,6 +362,17 @@
   .kw-single .qcat{display:inline-block;font-size:.5em;font-weight:700;color:#fff;background:var(--kw-color,var(--green-deep));
     padding:.2em .8em;border-radius:999px;margin-bottom:.8em;}
   .kw-single mark{background:linear-gradient(transparent 60%, rgba(242,169,59,.55) 60%);color:inherit;}
+  /* 取り上げ済みの質問：一覧では薄く・下に、1件表示では印を出す */
+  .kw-item.kw-done{opacity:.4;}
+  .kw-item .done-mark, .qitem .done-mark{color:var(--green-deep);font-weight:900;margin-right:.3em;}
+  .qitem.q-done{opacity:.5;}
+  .kw-alldone{padding:1.2em 0;color:var(--ink-soft);font-size:var(--kw-fs,17px);}
+  .kw-donebtn{font-size:15px;padding:6px 16px;border-radius:20px;margin-left:14px;vertical-align:middle;}
+  .kw-donebtn.is-done{background:var(--green-deep);border-color:var(--green-deep);color:#fff;}
+  body.presentation .kw-donebtn{font-size:clamp(14px,1.2vw,22px);}
+  body.presentation #doneResetBtn{display:none !important;}
+  .kw-single .done-badge{display:inline-block;font-size:.5em;font-weight:700;color:#fff;background:var(--ink-soft);
+    padding:.2em .8em;border-radius:999px;margin:0 0 .8em .5em;}
   .kw-single .qname{font-size:.7em;font-weight:500;color:var(--ink-soft);margin-left:.3em;white-space:nowrap;}
 
   /* ---- 投影モードで質問がまだ無いとき：QRコード付きの案内を表示 ---- */
@@ -392,6 +404,7 @@
 </head>
 <body class="no-questions">
 <div class="mode-bar">
+  <button id="doneResetBtn" class="ghost mode-btn" type="button" style="display:none;">取り上げ済みを解除</button>
   <button id="preToggleBtn" class="ghost mode-btn" type="button" style="display:none;">事前質問：非表示中</button>
   <button id="presentModeBtn" class="ghost mode-btn" type="button">投影モードで表示</button>
 </div>
@@ -589,6 +602,9 @@
     sourceLocked: false,  // config.json の lockDataSource が true（画面からデータソースを変更できない）
     lastCsvText: null,   // 前回取得したCSVの中身（自動更新で変化を検知するために使う）
     seenQuestions: null, // これまでに表示した質問（行の内容）の記録。新着演出の判定に使う
+    done: Object.create(null), // 取り上げ済みの質問（質問文をキーに、このブラウザに保存）
+    hideDone: false,     // ポップアップの一覧から取り上げ済みを隠すか（config.json の hideDoneQuestions）
+    excludeDone: false,  // 取り上げ済みの質問をワードクラウドの集計から外すか（excludeDoneFromCloud）
     dataMode: null       // "url" または "file"
   };
 
@@ -596,7 +612,7 @@
   ["csvUrl","loadBtn","autoRefresh","refreshInterval","csvFile","statusBox",
    "mapSection","qCol","catCol","excludeWords","aggregateBtn",
    "resultSection","cloudCanvas","catList",
-   "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn","preToggleBtn","pbStatus","reportBtn","reportView",
+   "listSection","filterTag","qListBody","clearFilterBtn","presentModeBtn","preToggleBtn","doneResetBtn","pbStatus","reportBtn","reportView",
    "kwModal","kwCard","kwTitle","kwBody","kwClose","pbEvent","pbCount","eventLine"
   ].forEach(function(id){ els[id] = document.getElementById(id); });
 
@@ -1011,6 +1027,7 @@
     var newWordCount = Object.create(null);
 
     var hiddenPre = 0;
+    var byKey = Object.create(null);
     var nameCol = findNameColumn();
     var filterPre = !!(state.preCol && state.preValue && !state.showPre);
     state.rows.forEach(function(row){
@@ -1020,14 +1037,27 @@
       if (filterPre && (row[state.preCol] || "").toString().trim() === state.preValue){ hiddenPre++; return; }
       var cat = catCol ? (row[catCol] || "").toString().trim() : "";
       var who = nameCol ? (row[nameCol] || "").toString().trim() : "";
-      questions.push({ question: q, category: cat, name: who });
-      var qIndex = questions.length - 1;
-
-      if (cat){ catCount[cat] = (catCount[cat] || 0) + 1; }
-
       var rowKey = JSON.stringify(row);
       var isNew = highlight && !seenQuestions[rowKey];
       seenQuestions[rowKey] = true;
+
+      // 同じ文の質問（同じ人が2回送った場合など）は1件にまとめる。質問者が違えば名前を並べる
+      var key = questionKey(q);
+      if (byKey[key]){
+        var first = byKey[key];
+        if (who && (first.name ? first.name.split("、") : []).indexOf(who) === -1){
+          first.name = first.name ? first.name + "、" + who : who;
+        }
+        return;
+      }
+      var item = { question: q, category: cat, name: who, key: key, order: questions.length };
+      byKey[key] = item;
+      questions.push(item);
+      var qIndex = questions.length - 1;
+
+      if (cat){ catCount[cat] = (catCount[cat] || 0) + 1; }
+      // 取り上げ済みをワードクラウドから外す設定のときは、言葉を数えない
+      if (state.excludeDone && state.done[key]) return;
 
       var kws = extractKeywords(q);
       var seen = Object.create(null);
@@ -1348,23 +1378,33 @@
 
   // ---------- キーワードのポップアップ ----------
   function openKeywordPopup(word){
-    var items = questionsForWord(word);
-    if (!items.length){ closeKeywordPopup(); return; }
+    var all = questionsForWord(word);
+    if (!all.length){ closeKeywordPopup(); return; }
     state.popupWord = word;
+    // 並び順：まだ取り上げていない質問を新しい順に、取り上げ済みはその下（隠す設定なら出さない）
+    var doneCount = all.filter(isDone).length;
+    var items = all.slice().sort(function(a, b){
+      var da = isDone(a) ? 1 : 0, db = isDone(b) ? 1 : 0;
+      return da !== db ? da - db : b.order - a.order;
+    });
+    if (state.hideDone) items = items.filter(function(q){ return !isDone(q); });
 
     var color = wordCategoryColor(word) || "#2f9e64";
     els.kwCard.style.borderTopColor = color;
     els.kwCard.style.setProperty("--kw-color", color);
     els.kwTitle.innerHTML = '「<span class="kw-word">' + escapeHtml(word) + '</span>」を含む質問' +
-                            '<span class="kw-count">' + items.length + '件</span>';
+                            '<span class="kw-count">' + all.length + '件' +
+                            (doneCount ? '（取り上げ済み ' + doneCount + '件）' : '') + '</span>';
 
     var w = escapeHtml(word);
     els.kwBody.classList.remove("kw-single");
     els.kwBody.innerHTML = items.map(function(q, i){
       var text = markWord(q.question, word);
       var meta = q.category ? '<div class="qmeta">' + escapeHtml(q.category) + '</div>' : "";
-      return '<div class="kw-item" data-idx="' + i + '">' + meta + text + '</div>';
-    }).join("");
+      var d = isDone(q);
+      return '<div class="kw-item' + (d ? ' kw-done' : '') + '" data-idx="' + i + '">' + meta +
+             (d ? '<span class="done-mark">✓</span>' : '') + text + '</div>';
+    }).join("") || '<div class="kw-alldone">この言葉を含む質問は、すべて取り上げ済みです。</div>';
     state.popupItems = items;
 
     // 投影モード：件数が多いときは段組み（2〜3列）にして、文字を大きく保ったままスクロールなしで収める
@@ -1412,9 +1452,15 @@
     if (!q || !state.popupWord) return;
     state.popupSingle = q.question;
     var w = escapeHtml(state.popupWord);
+    var d = isDone(q);
     els.kwTitle.innerHTML = '<button type="button" class="ghost kw-back" id="kwBack">← 一覧に戻る</button>' +
-                            '「<span class="kw-word">' + w + '</span>」を含む質問';
-    var html = (q.category ? '<div class="qcat">' + escapeHtml(q.category) + '</div><br>' : "") +
+                            '「<span class="kw-word">' + w + '</span>」を含む質問' +
+                            '<button type="button" class="ghost kw-donebtn' + (d ? ' is-done' : '') + '" id="kwDone">' +
+                            (d ? '✓ 取り上げ済み（取り消す）' : '取り上げ済みにする') + '</button>';
+    state.popupSingleIdx = i;
+    var html = (q.category ? '<div class="qcat">' + escapeHtml(q.category) + '</div>' : "") +
+               (d ? '<span class="done-badge">✓ 取り上げ済み</span>' : "") +
+               ((q.category || d) ? '<br>' : "") +
                markWord(q.question, state.popupWord) +
                (q.name ? '<span class="qname">（' + escapeHtml(q.name) + '）</span>' : "");
     els.kwBody.style.columnCount = "";
@@ -1453,6 +1499,16 @@
   els.kwCard.addEventListener("click", function(e){
     var back = e.target.closest && e.target.closest("#kwBack");
     if (back){ e.stopPropagation(); backToList(); return; }
+    var doneBtn = e.target.closest && e.target.closest("#kwDone");
+    if (doneBtn){
+      e.stopPropagation();
+      var q = state.popupItems && state.popupItems[state.popupSingleIdx];
+      if (!q) return;
+      setDone(q.key, !isDone(q));
+      if (state.excludeDone){ runAggregate(); }   // ワードクラウドから外す設定なら集計し直す
+      else { showSingleQuestion(state.popupSingleIdx); renderQuestionList(state.listFilter || null); }
+      return;
+    }
     var item = e.target.closest && e.target.closest(".kw-item[data-idx]");
     if (item && els.kwBody.contains(item)){ e.stopPropagation(); showSingleQuestion(parseInt(item.getAttribute("data-idx"), 10)); }
   });
@@ -1497,6 +1553,7 @@
 
   // ---------- 質問一覧描画 ----------
   function renderQuestionList(filter){
+    state.listFilter = filter;
     var items = state.questions || [];
     var tag = "全件（" + items.length + "件）";
     if (filter){
@@ -1516,9 +1573,11 @@
     }
     items.forEach(function(q){
       var div = document.createElement("div");
-      div.className = "qitem";
+      var d = isDone(q);
+      div.className = "qitem" + (d ? " q-done" : "");
       var meta = q.category ? escapeHtml(q.category) : "";
-      div.innerHTML = (meta ? '<div class="qmeta">' + meta + '</div>' : "") + escapeHtml(q.question);
+      div.innerHTML = (meta ? '<div class="qmeta">' + meta + '</div>' : "") +
+                      (d ? '<span class="done-mark">✓</span>' : '') + escapeHtml(q.question);
       els.qListBody.appendChild(div);
     });
   }
@@ -1563,6 +1622,7 @@
         method: methodCol ? (row[methodCol] || "").toString().trim() : "",
         time: timeCol ? (row[timeCol] || "").toString().trim() : ""
       };
+      item.done = !!state.done[questionKey(q)];
       all.push(item);
       catCount[item.cat || "（未分類）"] = (catCount[item.cat || "（未分類）"] || 0) + 1;
       if (methodCol) methodCount[item.method || "（未記入）"] = (methodCount[item.method || "（未記入）"] || 0) + 1;
@@ -1586,6 +1646,9 @@
         }).join("") + '</table>';
     }
 
+    var doneKeys = Object.create(null);
+    all.forEach(function(it){ if (it.done) doneKeys[questionKey(it.q)] = true; });
+    var doneTotal = Object.keys(doneKeys).length;
     var now = new Date();
     var title = (state.eventTitle || document.title.replace(/｜コエミル$/, "")).trim();
     var cloudImg = "";
@@ -1601,7 +1664,8 @@
       return '<div class="rp-cat"><i style="background:' + (colorMap[c[0]] || "#2f9e64") + '"></i>' + escapeHtml(c[0]) + '（' + c[1] + '件）</div>' +
         byCat[c[0]].map(function(it){
           var meta = [it.time, it.method].filter(Boolean).map(escapeHtml).join("　");
-          return '<div class="rp-q">' + (meta ? '<div class="m">' + meta + '</div>' : "") + escapeHtml(it.q) +
+          return '<div class="rp-q">' + (meta ? '<div class="m">' + meta + '</div>' : "") +
+                 (it.done ? '<b class="rp-done">✓取り上げ済み</b> ' : '') + escapeHtml(it.q) +
                  (it.who ? '<span class="who">（' + escapeHtml(it.who) + '）</span>' : "") + '</div>';
         }).join("");
     }).join("");
@@ -1615,6 +1679,7 @@
         '<p class="rp-sub">作成日時：' + now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + hhmm(now) + '</p>' +
         '<div class="rp-tiles">' +
           '<div class="rp-tile"><b>' + all.length + '</b><span>質問の総数</span></div>' +
+          (doneTotal ? '<div class="rp-tile"><b>' + doneTotal + '</b><span>取り上げ済み</span></div>' : '') +
           methods.map(function(m){ return '<div class="rp-tile"><b>' + m[1] + '</b><span>' + escapeHtml(m[0]) + '</span></div>'; }).join("") +
         '</div>' +
         (hiddenNote ? '<p class="rp-note">' + hiddenNote + '</p>' : "") +
@@ -1762,6 +1827,40 @@
     return "";
   }
 
+  // ---------- 取り上げ済みの管理（このブラウザに保存。スプレッドシートには書き込まない）----------
+  function questionKey(q){ return String(q).normalize("NFKC").replace(/\s+/g, " ").trim(); }
+  function isDone(q){ return !!(q && state.done[q.key]); }
+  function doneStoreKey(){ return "koemiru-done:" + (document.title || ""); }
+  function saveDone(){
+    try { localStorage.setItem(doneStoreKey(), JSON.stringify(Object.keys(state.done))); } catch (e){}
+    updateDoneReset();
+  }
+  function loadDone(){
+    state.done = Object.create(null);
+    try {
+      var arr = JSON.parse(localStorage.getItem(doneStoreKey()) || "[]");
+      if (Array.isArray(arr)) arr.forEach(function(k){ state.done[k] = true; });
+    } catch (e){}
+    updateDoneReset();
+  }
+  function setDone(key, on){
+    if (!key) return;
+    if (on){ state.done[key] = true; } else { delete state.done[key]; }
+    saveDone();
+  }
+  function updateDoneReset(){
+    var n = Object.keys(state.done).length;
+    els.doneResetBtn.style.display = n ? "" : "none";
+    els.doneResetBtn.textContent = "取り上げ済み " + n + "件を解除";
+  }
+  els.doneResetBtn.addEventListener("click", function(){
+    var n = Object.keys(state.done).length;
+    if (!n || !window.confirm("取り上げ済みの印（" + n + "件）をすべて外しますか？\nリハーサルのあと、本番前に使います。")) return;
+    state.done = Object.create(null);
+    saveDone();
+    if (state.rows && state.rows.length) runAggregate();
+  });
+
   // ---------- 事前質問の表示切替（講演中は隠し、講師との対談で表示する）----------
   function preStoreKey(){ return "koemiru-showPre:" + (document.title || ""); }
   function updatePreToggle(){
@@ -1791,8 +1890,12 @@
   });
 
   function applyConfig(cfg){
+    if (cfg && typeof cfg.eventTitle === "string" && cfg.eventTitle.trim()){ document.title = cfg.eventTitle.trim() + "｜コエミル"; }
+    loadDone();   // 取り上げ済みの記録は講演タイトルごとに保存する
     if (cfg){ setEventInfo(cfg.eventTitle, cfg.speaker); setGuideQr(cfg.formUrl); setupPreQuestions(cfg);
               if (typeof cfg.nameColumn === "string") state.nameColumn = cfg.nameColumn.trim();
+              state.hideDone = (cfg.hideDoneQuestions === true || cfg.hideDoneQuestions === "true");
+              state.excludeDone = (cfg.excludeDoneFromCloud === true || cfg.excludeDoneFromCloud === "true");
               var hs = parseFloat(cfg.highlightSeconds);
               if (!isNaN(hs) && hs >= 0){ state.glowMs = hs === 0 ? Infinity : hs * 1000; } }
     // データソース固定モード：lockDataSource が true のとき、URL入力・CSVアップロードを画面から隠し、

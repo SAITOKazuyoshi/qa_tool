@@ -21,7 +21,7 @@
 ## config.json の項目
 `csvUrl`（`/pub?...output=csv` 形式。`/pubhtml` は不可）/ `lockDataSource`（画面のURL入力を隠す）/
 `questionColumn` / `categoryColumn`（現在は「所属」）/ `excludeWords` / `autoRefresh` /
-`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `nameColumn`（質問者。省略時は自動判定）/ `highlightSeconds`（新着の光る秒数。既定60、0で次の変化まで）/ `preQuestionColumn` / `preQuestionValue` / `showPreQuestions`（事前質問の表示切替）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
+`refreshIntervalMs`（5000・15000〔テスト用〕・30000・60000・300000のみ）/ `eventTitle` / `speaker` / `formUrl`（form-kit.html と投影モード0件時のQR用。回答用URL）/ `nameColumn`（質問者。省略時は自動判定）/ `highlightSeconds`（新着の光る秒数。既定60、0で次の変化まで）/ `preQuestionColumn` / `preQuestionValue` / `showPreQuestions`（事前質問の表示切替）/ `hideDoneQuestions` / `excludeDoneFromCloud`（取り上げ済みの扱い）/ `enabled` / `availableFrom` / `availableUntil`（公開期間。期間外は `body.closed` で全体を隠し、CSV・辞書を読まない）/
 `morphology`（`true` のときだけ形態素解析を使う。初期は無効＝簡易抽出）
 
 ## 主な機能と実装の要点
@@ -32,7 +32,9 @@
 - **投影モードの見た目**: 単語は太字（`fontWeight: 700`、Zen Kaku の700を読み込んでから描く）、カテゴリ色を `darkenColor` で18%濃く。更新時は前の画面を `.cloud-snap` に写して重ね、描き終わったら0.8秒でクロスフェード。更新直後は簡易抽出→形態素解析で2回描くため、フェード前の写しは使い回す（写し直すと描きかけを写す）。新着演出は入れ替え後（820ms後）に出す。
 - **自動更新の状態**: `updateRefreshStatus` が `#pbStatus`（上部バー右）に表示。`state.lastCheckAt` は取得成功時刻（変化の有無を問わず）。間隔×3＋10秒を超えたら黄、失敗・自動更新オフは赤。10秒ごとに再評価。
 - **開催レポート**: `#reportBtn` → `buildReport` が `state.rows` 全件（非表示中の事前質問も含む）から集計し `#reportView` に描画、`body.reporting` で他を隠す。印刷CSSあり。ワードクラウドは作成時点のキャンバス画像。
-- **単語クリック**: ポップアップで該当質問を表示。一覧の質問クリックで1件表示（`showSingleQuestion`、質問者は `nameColumn` または「名前・氏名」を含む列を（）で表示。Escで一覧へ、自動更新後も `state.popupSingle` で同じ質問を維持）。ワードクラウドの大きさとポップアップの件数は同じ基準（`wordQuestions`）。
+- **単語クリック**: ポップアップで該当質問を表示。一覧の質問クリックで1件表示（`showSingleQuestion`、質問者は `nameColumn` または「名前・氏名」を含む列を（）で表示。Escで一覧へ、自動更新後も `state.popupSingle` で同じ質問を維持）。一覧は未取り上げを新しい順（`order` 降順）→取り上げ済み。ワードクラウドの大きさとポップアップの件数は同じ基準（`wordQuestions`）。
+- **取り上げ済み**: 1件表示の `#kwDone` で切替。`state.done`（キーは `questionKey`＝NFKC＋空白まとめ）を localStorage `koemiru-done:<document.title>` に保存。config の `hideDoneQuestions`（一覧から隠す）/ `excludeDoneFromCloud`（集計から外す。切替時に `runAggregate`）。解除は `#doneResetBtn`（投影モードでは非表示）。
+- **同文まとめ**: `runAggregate` で同じ `questionKey` の行は1件にまとめ、質問者名を「、」で連結。件数・言葉は1回だけ数える（開催レポートは全行のまま）。
 - **色**: 単語の色は、その単語に最も多く紐づく所属の色。
 - **新着演出**: 自動更新で初めて出てきた質問（`seenQuestions` に無い行）に含まれる単語（最大12語）が大きくなり、`highlightSeconds`（既定60秒、0で無期限）か次のデータ変化の早いほうまで光る（`state.glowUntil` / `endGlow` でフェードアウト）。件数の増減では判定しない（Googleの公開CSVは更新直後に新旧データを交互に返すことがあり、同じ質問が何度も光ったため）。位置は wordcloud2 の `hover` を使って画面全体をなぞって取得する。
 - **単語抽出**: 既定は簡易抽出（漢字・カタカナ・英数字の連続）。`morphology: true` のとき、Kuromoji を **Web Worker** で動かす。辞書の展開をメイン処理でやると画面全体が固まるため、必ず別スレッドにすること。辞書の準備前は簡易抽出で先に表示し、準備後に自動で切り替える。60秒で打ち切り。
@@ -57,4 +59,4 @@
 `sample_qa.csv`（30件）、`sample_qa_hap.csv`（北海道エアーポート山崎社長講演向け50件）、`update_test_10.csv`（更新テスト用10件）。列は タイムスタンプ / 所属 / カテゴリ / 質問内容。
 
 ## 今後の候補
-質問の「取り上げ済み」管理（スプレッドシートの列で判定）/ 類似質問のまとめ表示 / 講師用の質問カード表示 / 投影モードの明暗テーマ切替 / 光る時間の長さの設定。
+類似質問のまとめ表示 / 講師用の質問カード表示 / 投影モードの明暗テーマ切替 / 光る時間の長さの設定。
