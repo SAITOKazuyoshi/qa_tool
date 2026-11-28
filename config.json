@@ -15,5 +15,6 @@
   "availableUntil": "2026-12-31",
   "preQuestionColumn": "参加方法",
   "preQuestionValue": "事前質問",
-  "showPreQuestions": false
+  "showPreQuestions": false,
+  "hideDoneQuestions": true
 }
